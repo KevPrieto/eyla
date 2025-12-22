@@ -1,9 +1,9 @@
-# NYRA — Productivity, reimagined.
+# EYLA — Productivity, reimagined.
 ### Turn ideas into a roadmap. Instantly.
 
-NYRA is a minimalist AI-powered tool that transforms vague ideas into clear, actionable roadmaps — helping you think better, plan faster, and build with direction.
+EYLA is a minimalist AI-powered tool that transforms vague ideas into clear, actionable roadmaps — helping you think better, plan faster, and build with direction.
 
-<img width="1024" height="1024" alt="nyra" src="https://github.com/user-attachments/assets/ff48f22f-74ee-4fcd-b707-eec4e6c2f8c8" />
+<img width="1024" height="1024" alt="eylaimage" src="https://github.com/user-attachments/assets/34f83357-1f81-409e-80bd-4b8b449898a6" />
 
 NYRA started with a simple frustration:
 ideas are easy… clarity is not.
@@ -16,11 +16,11 @@ No complex productivity systems.
 
 Just clarity.
 
-<img width="1024" height="1024" alt="a1968abd-f21a-4cac-94cd-b954bc02f2a4" src="https://github.com/user-attachments/assets/291ddf59-abcf-4277-9ff5-323841578319" />
+<img width="1024" height="1024" alt="eylalogo" src="https://github.com/user-attachments/assets/e753c49b-40db-4338-9ed7-1c2eae72b016" />
 
-### 🚀 What NYRA Does (MVP)
+### 🚀 What EYLA Does (MVP)
 
-NYRA takes a raw idea from the user — for example:
+EYLA takes a raw idea from the user — for example:
 
 "I want to build an online store for custom t-shirts"
 
@@ -38,26 +38,27 @@ Stored locally (no login, no server, no database)
 
 All running on a clean, minimal, modern interface.
 
-<img width="1024" height="1024" alt="4" src="https://github.com/user-attachments/assets/245ffdf5-a4fd-43dd-9130-5fd31eeb783d" />
+<img width="1024" height="1024" alt="EYLA" src="https://github.com/user-attachments/assets/338e0e9d-1859-4276-a441-3c5c1f740cb6" />
 
-<img width="1024" height="1024" alt="nyraroadmap_concept" src="https://github.com/user-attachments/assets/977857cb-3693-49ef-8c88-f2440b978849" />
+<img width="1024" height="1024" alt="eyla2" src="https://github.com/user-attachments/assets/61c7f4ac-aa89-4a62-997f-23d9a82b8326" />
 
-🧠 The Philosophy Behind NYRA
+🧠 The Philosophy Behind EYLA
 
-NYRA is not a task manager.
+EYLA is not a task manager.
 It's not another productivity suite.
 It's not competing with Notion, Asana, or Linear.
 
-NYRA’s role is much simpler:
+EYLA’s role is much simpler:
 
 Turn mental chaos into structured clarity.
 Help people think.
 
 AI is used as a copilot, not an autopilot.
-If the idea is vague, NYRA asks for more context.
-If the user wants control, NYRA stays out of the way.
+If the idea is vague, EYLA asks for more context.
+If the user wants control, EYLA stays out of the way.
 
-<img width="1024" height="1024" alt="e7acf9a2-c299-42ae-9873-587195ed6446" src="https://github.com/user-attachments/assets/c071afed-f0da-40ad-9b1a-bcc27a3ee460" />
+<img width="1536" height="1024" alt="eylalogo2" src="https://github.com/user-attachments/assets/5df61112-840c-4c15-8b9c-111d98a0bd0b" />
+
 
 🏗️ Tech Stack
 
@@ -153,7 +154,7 @@ Then open:
 
 👉 http://localhost:3000
 
-🛣️ NYRA Roadmap (Meta-Roadmap)
+🛣️ EYLA Roadmap (Meta-Roadmap)
 Phase 0 — Setup
 
 Clean structure + component foundation.
@@ -178,7 +179,7 @@ Mobile app, login, cloud sync, collaboration, encryption.
 🌱 Why This MVP Matters
 
 Because making progress in life starts with clarity.
-NYRA is your starting point — not a productivity monster,
+EYLA is your starting point — not a productivity monster,
 not a complex ecosystem — but a simple tool to think better.
 
 This is version 0.1.
@@ -186,5 +187,5 @@ This is version 0.1.
 Small, intentional, and genuinely helpful.
 
 More coming soon.
+<img width="1536" height="1024" alt="eylabanner" src="https://github.com/user-attachments/assets/0b21d125-2968-40a1-9aeb-35b049ae6e13" />
 
-![NYRA Banner](https://dummyimage.com/1800x420/0a0a0a/ffffff&text=NYRA+—+Productivity,+Reimagined.)
