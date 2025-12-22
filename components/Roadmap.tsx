@@ -2,76 +2,69 @@
 
 import React from "react";
 
-interface RoadmapProps {
-  phases: {
-    name: string;
-    steps: string[];
-  }[];
+export interface Phase {
+  name: string;
+  steps: string[];
 }
 
-export function Roadmap({ phases }: RoadmapProps) {
+interface RoadmapProps {
+  phases: Phase[];
+}
+
+export default function Roadmap({ phases }: RoadmapProps) {
+  if (!phases || phases.length === 0) {
+    return (
+      <p className="text-gray-500 mt-10">
+        No roadmap generated yet.
+      </p>
+    );
+  }
+
   return (
-    <div className="flex flex-col items-center w-full py-12">
+    <div className="w-full max-w-4xl mt-16">
+      {/* Timeline */}
       <svg
-        width="90%"
-        height="300px"
-        viewBox="0 0 1000 300"
-        className="text-blue-400"
+        viewBox="0 0 1000 200"
+        className="w-full h-40 mb-16"
       >
         <path
-          d="M 50 150 Q 300 20, 500 150 T 950 150"
-          stroke="rgba(120,160,255,0.35)"
-          strokeWidth="6"
+          d="M 50 100 Q 300 20, 500 100 T 950 100"
+          stroke="#3b82f6"
+          strokeWidth="4"
           fill="none"
-          strokeLinecap="round"
+          opacity="0.6"
         />
-
-        <path
-          d="M 50 150 Q 300 20, 500 150 T 950 150"
-          stroke="url(#glow)"
-          strokeWidth="6"
-          fill="none"
-          strokeLinecap="round"
-          className="animate-pulse"
-        />
-
-        <defs>
-          <linearGradient id="glow">
-            <stop offset="0%" stopColor="#4fa3ff" />
-            <stop offset="100%" stopColor="#8ab4ff" />
-          </linearGradient>
-        </defs>
 
         {phases.map((phase, index) => {
-          const x = 50 + (index / (phases.length - 1)) * 900;
-          const y = 150;
+          const x =
+            phases.length === 1
+              ? 500
+              : 50 + (index / (phases.length - 1)) * 900;
 
           return (
             <g key={index}>
               <circle
                 cx={x}
-                cy={y}
-                r={22}
-                fill="#111827"
-                stroke="#4fa3ff"
+                cy={100}
+                r={16}
+                fill="#0b0f19"
+                stroke="#3b82f6"
                 strokeWidth="3"
               />
-
               <text
                 x={x}
-                y={y + 5}
+                y={105}
                 textAnchor="middle"
-                fontSize="14"
-                fill="#d8e6ff"
+                fontSize="12"
+                fill="#e5e7eb"
               >
                 {index + 1}
               </text>
-
               <text
                 x={x}
-                y={y + 50}
+                y={140}
                 textAnchor="middle"
-                fontSize="16"
+                fontSize="14"
                 fill="#cbd5e1"
               >
                 {phase.name}
@@ -81,20 +74,20 @@ export function Roadmap({ phases }: RoadmapProps) {
         })}
       </svg>
 
-      <div className="mt-8 w-[80%] max-w-2xl">
+      {/* Details */}
+      <div className="space-y-10">
         {phases.map((phase, index) => (
-          <div key={index} className="mb-8">
-            <h2 className="text-xl font-semibold text-blue-300 mb-3">
+          <div key={index}>
+            <h3 className="text-lg font-semibold text-blue-400 mb-3">
               {index + 1}. {phase.name}
-            </h2>
-
-            <ul className="space-y-2 ml-4">
+            </h3>
+            <ul className="space-y-2 pl-4">
               {phase.steps.map((step, i) => (
                 <li
                   key={i}
-                  className="text-gray-300 border-l border-blue-800 pl-4 hover:text-blue-300 transition"
+                  className="text-gray-300 border-l border-blue-700 pl-4"
                 >
-                  • {step}
+                  {step}
                 </li>
               ))}
             </ul>
