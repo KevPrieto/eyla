@@ -7,30 +7,32 @@ function uid() {
   return crypto.randomUUID();
 }
 
+const STORAGE_KEY = "eyla-project";
+
 function generateLocalRoadmap(): Phase[] {
   return [
     {
       id: uid(),
       name: "Planning",
       steps: [
-        { id: uid(), text: "Define the problem" },
-        { id: uid(), text: "Clarify the core idea" }
+        { id: uid(), text: "Define the problem", completed: false },
+        { id: uid(), text: "Clarify the core idea", completed: false }
       ]
     },
     {
       id: uid(),
       name: "Design",
       steps: [
-        { id: uid(), text: "Sketch main user flow" },
-        { id: uid(), text: "Decide MVP scope" }
+        { id: uid(), text: "Sketch main user flow", completed: false },
+        { id: uid(), text: "Decide MVP scope", completed: false }
       ]
     },
     {
       id: uid(),
       name: "Development",
       steps: [
-        { id: uid(), text: "Implement core logic" },
-        { id: uid(), text: "Test interactions" }
+        { id: uid(), text: "Implement core logic", completed: false },
+        { id: uid(), text: "Test interactions", completed: false }
       ]
     }
   ];
@@ -39,64 +41,65 @@ function generateLocalRoadmap(): Phase[] {
 export default function Page() {
   const [idea, setIdea] = useState("");
   const [phases, setPhases] = useState<Phase[]>([]);
-  const [status, setStatus] = useState<string | null>(null);
 
-  function generate() {
-    if (!idea.trim()) {
-      setStatus("Write an idea first.");
-      return;
-    }
+  useEffect(() => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      setIdea(parsed.idea ?? "");
+      setPhases(parsed.phases ?? []);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ idea, phases }));
+  }, [idea, phases]);
+
+  function start() {
+    if (!idea.trim()) return;
     setPhases(generateLocalRoadmap());
-    setStatus("Local roadmap generated. Edit freely.");
   }
 
   function reset() {
+    setIdea("");
     setPhases([]);
-    setStatus(null);
+    localStorage.removeItem(STORAGE_KEY);
   }
 
   return (
-    <main className="min-h-screen bg-[#0b0f19] text-white flex flex-col items-center px-6 py-16">
-      <h1 className="text-4xl font-bold mb-2">EYLA</h1>
-      <p className="text-gray-400 mb-10">Turn ideas into clear paths.</p>
+    <main className="min-h-screen bg-[#0b0f19] text-white px-6 py-20 flex flex-col items-center">
+      <h1 className="text-4xl font-semibold mb-2 tracking-wide">EYLA</h1>
+      <p className="text-gray-400 mb-12">Turn ideas into clear paths.</p>
 
-      <div className="w-full max-w-md flex flex-col gap-4">
-        <input
-          value={idea}
-          onChange={e => setIdea(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && generate()}
-          placeholder="Describe your idea..."
-          className="w-full p-3 rounded bg-[#111827] border border-gray-700 focus:outline-none focus:border-blue-500"
-        />
-
-        <div className="flex gap-3">
+      {phases.length === 0 && (
+        <div className="w-full max-w-xl space-y-4">
+          <input
+            value={idea}
+            onChange={e => setIdea(e.target.value)}
+            placeholder="Plan the new project launch"
+            className="w-full p-4 rounded-xl bg-[#111827] border border-gray-700 text-lg focus:border-blue-500 transition"
+          />
           <button
-            onClick={generate}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 rounded py-3 font-medium"
+            onClick={start}
+            className="w-full bg-blue-600 hover:bg-blue-700 rounded-xl py-4 text-lg font-medium transition"
           >
-            Generate roadmap
-          </button>
-
-          <button
-            onClick={reset}
-            disabled={!phases.length}
-            className={`px-4 rounded py-3 border ${
-              phases.length
-                ? "border-gray-700 hover:border-gray-500"
-                : "border-gray-800 text-gray-600 cursor-not-allowed"
-            }`}
-          >
-            Reset
+            Start planning
           </button>
         </div>
-
-        {status && (
-          <p className="text-xs text-yellow-300">{status}</p>
-        )}
-      </div>
+      )}
 
       {phases.length > 0 && (
-        <Roadmap phases={phases} setPhases={setPhases} />
+        <>
+          <button
+            onClick={reset}
+            className="mb-10 text-sm text-gray-500 hover:text-gray-300 transition"
+          >
+            Reset project
+          </button>
+
+          <Roadmap phases={phases} setPhases={setPhases} />
+        </>
       )}
     </main>
   );
