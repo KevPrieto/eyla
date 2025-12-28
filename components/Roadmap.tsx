@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 /* ---------- types ---------- */
@@ -25,231 +25,442 @@ type RoadmapProps = {
 };
 
 /* ---------- helpers ---------- */
-function safeText(v: unknown) { return typeof v === "string" ? v : ""; }
-function uid() { return crypto.randomUUID(); }
-function clamp(n: number, min: number, max: number) { return Math.max(min, Math.min(max, n)); }
+function uid() {
+  return crypto.randomUUID();
+}
 
-function getGlobalNext(phases: Phase[]) {
-  for (const phase of phases) {
-    for (const step of phase.steps) {
-      if (!step.completed) return { phaseId: phase.id, stepId: step.id };
+type FlatRef = {
+  phaseIndex: number;
+  stepIndex: number;
+  phaseId: string;
+  stepId: string;
+  phaseName: string;
+  text: string;
+  completed: boolean;
+  linearIndex: number;
+};
+
+function flatten(phases: Phase[]): FlatRef[] {
+  const out: FlatRef[] = [];
+  let k = 0;
+  for (let pi = 0; pi < phases.length; pi++) {
+    const p = phases[pi];
+    for (let si = 0; si < p.steps.length; si++) {
+      const s = p.steps[si];
+      out.push({
+        phaseIndex: pi,
+        stepIndex: si,
+        phaseId: p.id,
+        stepId: s.id,
+        phaseName: p.name,
+        text: s.text,
+        completed: s.completed,
+        linearIndex: k++,
+      });
     }
   }
-  return null;
+  return out;
 }
 
-function countDone(phases: Phase[]) {
-  let done = 0;
-  let total = 0;
-  for (const p of phases) {
-    for (const s of p.steps) {
-      total++;
-      if (s.completed) done++;
-    }
-  }
-  return { done, total };
+function firstIncompleteIndex(flat: FlatRef[]) {
+  return flat.findIndex((x) => !x.completed);
 }
 
-function phaseDone(phase: Phase) {
-  return phase.steps.length > 0 && phase.steps.every((s) => s.completed);
+function allDone(flat: FlatRef[]) {
+  return flat.length > 0 && flat.every((x) => x.completed);
 }
 
-function buildMysticPath(points: { x: number; y: number }[]) {
-  if (points.length < 2) return "";
-  const p = points;
-  const d: string[] = [`M ${p[0].x} ${p[0].y}`];
+/**
+ * Reversible deterministic model:
+ * - Focus step = index i
+ * - All < i => completed true
+ * - All >= i => completed false (i is current)
+ */
+function setFocusByLinearIndex(
+  prev: Phase[],
+  focusIndex: number
+): Phase[] {
+  const flat = flatten(prev);
+  const maxIdx = flat.length - 1;
+  const i = Math.max(0, Math.min(focusIndex, maxIdx));
 
-  for (let i = 1; i < p.length; i++) {
-    const prev = p[i - 1];
-    const cur = p[i];
-    const dy = cur.y - prev.y;
-    const c1x = prev.x;
-    const c1y = prev.y + dy * 0.5;
-    const c2x = cur.x;
-    const c2y = cur.y - dy * 0.5;
-    d.push(`C ${c1x} ${c1y}, ${c2x} ${c2y}, ${cur.x} ${cur.y}`);
-  }
-  return d.join(" ");
+  return prev.map((p, pi) => ({
+    ...p,
+    steps: p.steps.map((s, si) => {
+      const ref = flat.find((r) => r.phaseIndex === pi && r.stepIndex === si);
+      if (!ref) return s;
+      const shouldBeCompleted = ref.linearIndex < i;
+      return { ...s, completed: shouldBeCompleted };
+    }),
+  }));
 }
 
 export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapProps) {
-  const [activePhaseId, setActivePhaseId] = useState<string>(() => phases[0]?.id ?? "");
-  const [launchOpen, setLaunchOpen] = useState(false);
+  const flat = useMemo(() => flatten(phases), [phases]);
 
-  // Constantes de diseño (Sincronizadas)
-  const CARD_W = 400;
-  const GAP_Y = 180;
-  const TOP_PAD = 100;
-  const MID_X = 500; 
-  const SWAY = 180; // Antes había 160 vs 170, ahora 180 en ambos.
-  const DOT_R = 6;
+  const currentLinearIndex = useMemo(() => {
+    const idx = firstIncompleteIndex(flat);
+    return idx;
+  }, [flat]);
 
-  useEffect(() => {
-    if (!phases.length) return;
-    setActivePhaseId((prev) => {
-      const exists = phases.some((p) => p.id === prev);
-      return exists ? prev : phases[0].id;
+  const done = useMemo(() => allDone(flat), [flat]);
+
+  const current = useMemo(() => {
+    if (!flat.length || currentLinearIndex === -1) return null;
+    return flat[currentLinearIndex];
+  }, [flat, currentLinearIndex]);
+
+  const past = useMemo(() => {
+    if (!flat.length) return [];
+    const i = currentLinearIndex === -1 ? flat.length : currentLinearIndex;
+    return flat.slice(Math.max(0, i - 3), i); // last 3 completed
+  }, [flat, currentLinearIndex]);
+
+  const future = useMemo(() => {
+    if (!flat.length || currentLinearIndex === -1) return [];
+    return flat.slice(currentLinearIndex + 1).slice(0, 3); // next 3
+  }, [flat, currentLinearIndex]);
+
+  const [isEditing, setIsEditing] = useState(false);
+
+  const ui = useMemo(
+    () =>
+      theme === "dark"
+        ? {
+            title: "text-slate-100",
+            sub: "text-slate-400",
+            frame: "border-slate-800/70 bg-[#0b1220]/55",
+            input: "text-slate-100 placeholder:text-slate-500",
+            primary: "bg-blue-600 hover:bg-blue-700 text-white",
+            ghost:
+              "text-slate-300/80 hover:text-slate-100 border border-slate-700/70 hover:bg-slate-900/40",
+            danger:
+              "border border-rose-500/40 text-rose-300 hover:text-rose-200 hover:bg-rose-500/10",
+            chip:
+              "text-[11px] px-2 py-1 rounded-full border border-slate-700/70 text-slate-300/80",
+            dotOn: "bg-cyan-400",
+            dotOff: "bg-slate-700",
+            hint: "text-slate-500",
+            cardHover: "hover:border-slate-700/90 hover:bg-[#0b1220]/70",
+          }
+        : {
+            title: "text-slate-900",
+            sub: "text-slate-600",
+            frame: "border-slate-200 bg-white",
+            input: "text-slate-900 placeholder:text-slate-400",
+            primary: "bg-sky-600 hover:bg-sky-700 text-white",
+            ghost:
+              "text-slate-700 hover:text-slate-900 border border-slate-200 hover:bg-slate-50",
+            danger:
+              "border border-rose-300 text-rose-600 hover:bg-rose-50",
+            chip:
+              "text-[11px] px-2 py-1 rounded-full border border-slate-200 text-slate-600",
+            dotOn: "bg-sky-500",
+            dotOff: "bg-slate-300",
+            hint: "text-slate-500",
+            cardHover: "hover:border-slate-300 hover:bg-slate-50",
+          },
+    [theme]
+  );
+
+  function setStepText(stepId: string, text: string) {
+    setPhases((prev) =>
+      prev.map((p) => ({
+        ...p,
+        steps: p.steps.map((s) => (s.id === stepId ? { ...s, text } : s)),
+      }))
+    );
+  }
+
+  function focusStep(linearIndex: number) {
+    setIsEditing(false);
+    setPhases((prev) => setFocusByLinearIndex(prev, linearIndex));
+  }
+
+  function completeCurrent() {
+    if (!current) return;
+    const nextIndex = Math.min(current.linearIndex + 1, flat.length - 1);
+
+    // mark current completed and move focus to next
+    setPhases((prev) => {
+      const flatPrev = flatten(prev);
+      const idx = flatPrev.findIndex((r) => r.stepId === current.stepId);
+      if (idx === -1) return prev;
+      const after = prev.map((p, pi) => ({
+        ...p,
+        steps: p.steps.map((s, si) => {
+          const ref = flatPrev.find((r) => r.phaseIndex === pi && r.stepIndex === si);
+          if (!ref) return s;
+          return { ...s, completed: ref.linearIndex <= idx ? true : s.completed };
+        }),
+      }));
+      // focus becomes next incomplete
+      const newFlat = flatten(after);
+      const newIdx = firstIncompleteIndex(newFlat);
+      if (newIdx === -1) return after; // done
+      return setFocusByLinearIndex(after, newIdx);
     });
-  }, [phases]);
-
-  const activePhase = useMemo(() => {
-    return phases.find((p) => p.id === activePhaseId) ?? phases[0] ?? null;
-  }, [phases, activePhaseId]);
-
-  const nextGlobal = useMemo(() => getGlobalNext(phases), [phases]);
-  const { done, total } = useMemo(() => countDone(phases), [phases]);
-  const progressRatio = total === 0 ? 0 : done / total;
-  const allDone = total > 0 && done === total;
-
-  const points = useMemo(() => {
-    if (!activePhase) return [];
-    return activePhase.steps.map((_, i) => ({
-      x: MID_X + (i % 2 === 0 ? -SWAY : SWAY),
-      y: TOP_PAD + i * GAP_Y + 70, // +70 para que el punto esté en el centro de la tarjeta
-    }));
-  }, [activePhase?.steps]);
-
-  const pathD = useMemo(() => buildMysticPath(points), [points]);
-  const viewBoxH = points.length > 0 ? points[points.length - 1].y + 200 : 500;
-
-  /* ---------- mutations ---------- */
-  function updateStepText(stepId: string, text: string) {
-    setPhases(prev => prev.map(p => p.id !== activePhase?.id ? p : 
-      {...p, steps: p.steps.map(s => s.id === stepId ? {...s, text} : s)}
-    ));
   }
 
-  function toggleStep(stepId: string) {
-    setPhases(prev => prev.map(p => p.id !== activePhase?.id ? p : 
-      {...p, steps: p.steps.map(s => s.id === stepId ? {...s, completed: !s.completed} : s)}
-    ));
+  function addStepBefore() {
+    if (!current) return;
+    setPhases((prev) =>
+      prev.map((p, pi) => {
+        if (pi !== current.phaseIndex) return p;
+        const i = current.stepIndex;
+        return {
+          ...p,
+          steps: [
+            ...p.steps.slice(0, i),
+            { id: uid(), text: "New step", completed: false },
+            ...p.steps.slice(i),
+          ],
+        };
+      })
+    );
   }
 
-  function addStep(afterIndex: number) {
-    setPhases(prev => prev.map(p => {
-      if (p.id !== activePhase?.id) return p;
-      const newStep = { id: uid(), text: "New step", completed: false };
-      const steps = [...p.steps];
-      steps.splice(afterIndex + 1, 0, newStep);
-      return { ...p, steps };
-    }));
+  function addStepAfter() {
+    if (!current) return;
+    setPhases((prev) =>
+      prev.map((p, pi) => {
+        if (pi !== current.phaseIndex) return p;
+        const i = current.stepIndex;
+        return {
+          ...p,
+          steps: [
+            ...p.steps.slice(0, i + 1),
+            { id: uid(), text: "New step", completed: false },
+            ...p.steps.slice(i + 1),
+          ],
+        };
+      })
+    );
   }
 
-  function removeStep(stepId: string) {
-    setPhases(prev => prev.map(p => p.id !== activePhase?.id ? p : 
-      {...p, steps: p.steps.filter(s => s.id !== stepId).length ? p.steps.filter(s => s.id !== stepId) : p.steps}
-    ));
+  function removeCurrent() {
+    if (!current) return;
+    setPhases((prev) =>
+      prev.map((p, pi) => {
+        if (pi !== current.phaseIndex) return p;
+        return { ...p, steps: p.steps.filter((s) => s.id !== current.stepId) };
+      })
+    );
   }
 
-  const ui = useMemo(() => theme === "light" ? {
-    textMain: "text-slate-900",
-    textSub: "text-slate-600",
-    pillOn: "border-sky-500 text-sky-700 bg-white shadow-sm",
-    pillOff: "border-slate-200 text-slate-500 hover:bg-slate-50",
-    card: "bg-white/80 border-slate-200 backdrop-blur-md",
-    cardOff: "opacity-60",
-    glow: "shadow-xl",
-    input: "text-slate-900",
-    line: "rgba(2,132,199,0.5)",
-    dotActive: "#0284c7",
-    dotInactive: "#cbd5e1",
-    action: "text-sky-600 hover:bg-sky-50",
-    danger: "text-rose-500 hover:bg-rose-50",
-    badgeDone: "bg-sky-600 text-white",
-    badgeOpen: "bg-slate-100 text-slate-600"
-  } : {
-    textMain: "text-white",
-    textSub: "text-slate-400",
-    pillOn: "border-blue-500 text-blue-400 bg-blue-500/10",
-    pillOff: "border-slate-800 text-slate-500 hover:border-slate-700",
-    card: "bg-slate-900/60 border-slate-800 backdrop-blur-md",
-    cardOff: "opacity-50",
-    glow: "shadow-[0_0_30px_rgba(30,41,59,0.5)]",
-    input: "text-white",
-    line: "rgba(56,189,248,0.5)",
-    dotActive: "#38bdf8",
-    dotInactive: "#334155",
-    action: "text-blue-400 hover:bg-white/5",
-    danger: "text-rose-400 hover:bg-white/5",
-    badgeDone: "bg-blue-600 text-white",
-    badgeOpen: "bg-slate-800 text-slate-300"
-  }, [theme]);
-
-  if (!activePhase) return null;
+  // phase context (passive)
+  const phaseDots = useMemo(() => {
+    const idx = current ? current.phaseIndex : -1;
+    return phases.map((p, i) => ({ id: p.id, name: p.name, active: i === idx }));
+  }, [phases, current]);
 
   return (
-    <div className="relative w-full">
-      {/* Tabs */}
-      <div className="flex justify-center gap-2 mb-12">
-        {phases.map(p => (
-          <button
-            key={p.id}
-            onClick={() => setActivePhaseId(p.id)}
-            className={`px-5 py-2 rounded-full border text-sm font-medium transition-all ${p.id === activePhaseId ? ui.pillOn : ui.pillOff}`}
-          >
-            {p.name}
-          </button>
+    <div className="w-full">
+      {/* PHASE CONTEXT (passive, not navigation) */}
+      <div className="flex items-center justify-center gap-5 mb-10 select-none">
+        {phaseDots.map((p) => (
+          <div key={p.id} className="flex items-center gap-2">
+            <div className={`h-2 w-2 rounded-full ${p.active ? ui.dotOn : ui.dotOff}`} />
+            <div className={`text-xs ${p.active ? ui.title : ui.sub}`}>{p.name}</div>
+          </div>
         ))}
       </div>
 
-      {/* Progress */}
-      <div className="text-center mb-16">
-        <h2 className={`text-4xl font-bold mb-4 ${ui.textMain}`}>
-          {phaseDone(activePhase) ? "Phase Completed" : (activePhase.steps.find(s => !s.completed)?.text || "Next Step")}
+      {/* HEADER */}
+      <div className="text-center mb-10">
+        <h2 className={`text-3xl md:text-4xl font-semibold ${ui.title}`}>
+          {done ? "You’re done." : "Focus on one step."}
         </h2>
-        <div className="max-w-md mx-auto h-1.5 bg-slate-800/30 rounded-full overflow-hidden">
-          <motion.div 
-            animate={{ width: `${progressRatio * 100}%` }}
-            className="h-full bg-gradient-to-r from-blue-500 to-cyan-400"
-          />
-        </div>
+        <p className={`mt-2 ${ui.sub}`}>
+          {done ? "Nothing else for now." : "The path is still here—hover and move through it."}
+        </p>
       </div>
 
-      <div className="relative mx-auto" style={{ width: '1000px', height: viewBoxH }}>
-        {/* SVG Path */}
-        <svg viewBox={`0 0 1000 ${viewBoxH}`} className="absolute inset-0 w-full h-full pointer-events-none">
-          <path d={pathD} fill="none" stroke={ui.line} strokeWidth="3" strokeDasharray="8 8" />
-          {points.map((pt, i) => (
-            <circle key={i} cx={pt.x} cy={pt.y} r={DOT_R} fill={activePhase.steps[i].completed ? ui.dotActive : ui.dotInactive} />
-          ))}
-        </svg>
-
-        {/* Step Cards */}
-        {activePhase.steps.map((step, i) => {
-          const side = i % 2 === 0 ? -1 : 1;
-          return (
-            <motion.div
-              key={step.id}
-              initial={{ opacity: 0, x: side * 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="absolute"
-              style={{
-                top: TOP_PAD + i * GAP_Y,
-                left: `calc(50% + ${side * SWAY}px)`,
-                width: CARD_W,
-                transform: 'translateX(-50%)' // Esto centra la tarjeta sobre el punto
-              }}
-            >
-              <div className={`p-6 rounded-2xl border transition-all ${ui.card} ${ui.glow} ${!step.completed && ui.cardOff}`}>
-                <input
-                  value={step.text}
-                  onChange={(e) => updateStepText(step.id, e.target.value)}
-                  className={`w-full bg-transparent font-semibold text-lg outline-none mb-4 ${ui.input}`}
-                />
-                <div className="flex justify-between items-center">
-                  <button onClick={() => addStep(i)} className={`text-xs font-bold px-2 py-1 rounded ${ui.action}`}>+ STEP</button>
-                  <button 
-                    onClick={() => toggleStep(step.id)}
-                    className={`px-4 py-1.5 rounded-full text-[10px] font-black tracking-tighter ${step.completed ? ui.badgeDone : ui.badgeOpen}`}
-                  >
-                    {step.completed ? "COMPLETED" : "MARK DONE"}
-                  </button>
-                  <button onClick={() => removeStep(step.id)} className={`text-xs font-bold px-2 py-1 rounded ${ui.danger}`}>REMOVE</button>
-                </div>
+      {/* ROADMAP FIELD (past / current / future) */}
+      <div className="w-full flex flex-col items-center gap-6">
+        {/* FUTURE (preview) */}
+        <div className="w-full max-w-[920px]">
+          <div className={`text-[11px] uppercase tracking-wider ${ui.hint} mb-2`}>
+            Ahead
+          </div>
+          <div className="space-y-2">
+            {future.length ? (
+              future.map((s) => (
+                <button
+                  key={s.stepId}
+                  onClick={() => focusStep(s.linearIndex)}
+                  className={[
+                    "w-full text-left rounded-xl border px-4 py-3 transition",
+                    ui.frame,
+                    ui.cardHover,
+                    "opacity-70 hover:opacity-100",
+                  ].join(" ")}
+                  title="Click to bring this step into focus"
+                >
+                  <div className={`text-sm ${ui.title}`}>{s.text || "Untitled step"}</div>
+                  <div className={`text-[11px] mt-0.5 ${ui.sub}`}>{s.phaseName}</div>
+                </button>
+              ))
+            ) : (
+              <div className={`text-sm ${ui.sub} opacity-70`}>
+                {flat.length ? "No upcoming steps." : "No roadmap yet."}
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* CURRENT (focus) */}
+        <div className="w-full max-w-[920px]">
+          <div className={`text-[11px] uppercase tracking-wider ${ui.hint} mb-2`}>
+            Current
+          </div>
+
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={current ? current.stepId : "done"}
+              initial={{ opacity: 0, y: 10, filter: "blur(2px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -10, filter: "blur(2px)" }}
+              transition={{ duration: 0.22 }}
+              className={[
+                "group w-full rounded-2xl border p-6 md:p-8 transition relative",
+                ui.frame,
+                "hover:border-slate-700/90",
+              ].join(" ")}
+            >
+              {!done && current ? (
+                <>
+                  {/* top row */}
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <span className={ui.chip}>CURRENT STEP</span>
+
+                    {/* controls appear on hover only */}
+                    <div className="opacity-0 group-hover:opacity-100 transition flex items-center gap-2">
+                      <button
+                        onClick={addStepBefore}
+                        className={`px-3 py-1.5 rounded-full text-xs transition ${ui.ghost}`}
+                        title="Add a step before"
+                      >
+                        + Before
+                      </button>
+                      <button
+                        onClick={addStepAfter}
+                        className={`px-3 py-1.5 rounded-full text-xs transition ${ui.ghost}`}
+                        title="Add a step after"
+                      >
+                        + After
+                      </button>
+                      <button
+                        onClick={removeCurrent}
+                        className={`px-3 py-1.5 rounded-full text-xs transition ${ui.danger}`}
+                        title="Remove current step"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* editable title */}
+                  {!isEditing ? (
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="w-full text-left"
+                      title="Click to edit"
+                    >
+                      <div className={`text-xl md:text-2xl font-medium ${ui.title}`}>
+                        {current.text || "Untitled step"}
+                      </div>
+                      <div className={`text-xs mt-1 ${ui.sub}`}>
+                        Click to edit • {current.phaseName}
+                      </div>
+                    </button>
+                  ) : (
+                    <div>
+                      <input
+                        autoFocus
+                        value={current.text}
+                        onChange={(e) => setStepText(current.stepId, e.target.value)}
+                        onBlur={() => setIsEditing(false)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") setIsEditing(false);
+                          if (e.key === "Escape") setIsEditing(false);
+                        }}
+                        className={`w-full bg-transparent outline-none text-xl md:text-2xl font-medium ${ui.input}`}
+                        placeholder="Write the step…"
+                      />
+                      <div className={`text-xs mt-1 ${ui.sub}`}>Enter to finish editing</div>
+                    </div>
+                  )}
+
+                  {/* primary action */}
+                  <div className="mt-7 flex items-center justify-between gap-3">
+                    <button
+                      onClick={completeCurrent}
+                      className={`px-5 py-3 rounded-xl text-sm md:text-base font-medium transition ${ui.primary}`}
+                    >
+                      Complete
+                    </button>
+
+                    <div className={`text-xs md:text-sm ${ui.sub}`}>
+                      Hover to add/remove • Click future/past to refocus
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center">
+                  <div className={`text-lg ${ui.sub}`}>
+                    You can reset the project or reopen the last step.
+                  </div>
+                  {flat.length ? (
+                    <button
+                      onClick={() => focusStep(Math.max(0, flat.length - 1))}
+                      className={`mt-5 px-5 py-3 rounded-xl text-sm md:text-base font-medium transition ${ui.ghost}`}
+                    >
+                      Reopen last step
+                    </button>
+                  ) : null}
+                </div>
+              )}
             </motion.div>
-          );
-        })}
+          </AnimatePresence>
+        </div>
+
+        {/* PAST (history) */}
+        <div className="w-full max-w-[920px]">
+          <div className={`text-[11px] uppercase tracking-wider ${ui.hint} mb-2`}>
+            Behind
+          </div>
+          <div className="space-y-2">
+            {past.length ? (
+              past
+                .slice()
+                .reverse()
+                .map((s) => (
+                  <button
+                    key={s.stepId}
+                    onClick={() => focusStep(s.linearIndex)}
+                    className={[
+                      "w-full text-left rounded-xl border px-4 py-3 transition",
+                      ui.frame,
+                      ui.cardHover,
+                      "opacity-60 hover:opacity-100",
+                    ].join(" ")}
+                    title="Click to reopen this step (reversible)"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className={`text-sm ${ui.title}`}>
+                        <span className="opacity-70">✓ </span>
+                        {s.text || "Untitled step"}
+                      </div>
+                      <div className={`text-[11px] ${ui.sub}`}>{s.phaseName}</div>
+                    </div>
+                  </button>
+                ))
+            ) : (
+              <div className={`text-sm ${ui.sub} opacity-70`}>No completed steps yet.</div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
