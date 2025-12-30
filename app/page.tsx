@@ -1,183 +1,162 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Roadmap, { Phase } from "@/components/Roadmap";
+import Roadmap from "@/components/Roadmap";
 import Sidebar from "@/components/Sidebar";
-import NotesView from "@/components/NotesView";
-
-type ThemeMode = "dark" | "light";
-type ViewType = "home" | "roadmap" | "notes";
-
-interface Note {
-  id: string;
-  text: string;
-  createdAt: number;
-}
-
-function uid() {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
-const STORAGE_KEY = "eyla-project";
-const THEME_KEY = "eyla-theme";
-const PROJECT_NAME_KEY = "eyla-project-name";
-const NOTES_KEY = "eyla-notes";
-
-function generateLocalRoadmap(): Phase[] {
-  return [
-    {
-      id: uid(),
-      name: "Planning",
-      steps: [
-        { id: uid(), text: "Define the problem", completed: false },
-        { id: uid(), text: "Clarify the core idea", completed: false },
-      ],
-    },
-    {
-      id: uid(),
-      name: "Design",
-      steps: [
-        { id: uid(), text: "Sketch main user flow", completed: false },
-        { id: uid(), text: "Decide MVP scope", completed: false },
-      ],
-    },
-    {
-      id: uid(),
-      name: "Development",
-      steps: [
-        { id: uid(), text: "Implement core logic", completed: false },
-        { id: uid(), text: "Test interactions", completed: false },
-      ],
-    },
-  ];
-}
+import ThoughtsView from "@/components/ThoughtsView";
+import CalendarView from "@/components/CalendarView";
+import type { Project, Thought, Phase, ThemeMode, ViewType } from "@/types";
+import { STORAGE_KEYS } from "@/types";
+import { loadFromStorage } from "@/utils/migration";
+import { useProjectActions } from "@/hooks/useProjects";
+import { useThoughtActions } from "@/hooks/useThoughts";
+import { useNotifications } from "@/hooks/useNotifications";
 
 export default function Page() {
+  // Core state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [theme, setTheme] = useState<ThemeMode>("dark");
-  const [idea, setIdea] = useState("");
-  const [phases, setPhases] = useState<Phase[]>([]);
-  const [projectName, setProjectName] = useState("");
-  const [notes, setNotes] = useState<Note[]>([]);
   const [currentView, setCurrentView] = useState<ViewType>("home");
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load from localStorage
-  useEffect(() => {
-    const rawTheme = localStorage.getItem(THEME_KEY) as ThemeMode | null;
-    if (rawTheme) setTheme(rawTheme);
+  // Input state for home view
+  const [idea, setIdea] = useState("");
 
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      setIdea(parsed.idea ?? "");
-      setPhases(parsed.phases ?? []);
-      // If we have phases, start on roadmap view
-      if (parsed.phases && parsed.phases.length > 0) {
-        setCurrentView("roadmap");
-      }
-    }
-
-    const savedName = localStorage.getItem(PROJECT_NAME_KEY);
-    if (savedName) setProjectName(savedName);
-
-    const savedNotes = localStorage.getItem(NOTES_KEY);
-    if (savedNotes) setNotes(JSON.parse(savedNotes));
-  }, []);
-
-  // Persist roadmap
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ idea, phases }));
-  }, [idea, phases]);
-
-  // Persist theme
-  useEffect(() => {
-    localStorage.setItem(THEME_KEY, theme);
-  }, [theme]);
-
-  // Persist project name
-  useEffect(() => {
-    localStorage.setItem(PROJECT_NAME_KEY, projectName);
-  }, [projectName]);
-
-  // Persist notes
-  useEffect(() => {
-    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
-  }, [notes]);
-
-  const ui = useMemo(
-    () => ({
-      page:
-        "min-h-screen bg-[radial-gradient(1400px_800px_at_50%_0%,rgba(56,189,248,0.16),transparent_62%),linear-gradient(to_bottom,#050b18,#060b16)] text-slate-100",
-      canvas: "ml-[280px] min-h-screen flex justify-center",
-      stage: "w-full max-w-[1280px] px-10 md:px-14 py-16",
-      subtitle: "text-slate-300/70",
-      input:
-        "w-full p-5 text-lg bg-transparent border border-slate-700/80 rounded-xl outline-none placeholder:text-slate-500 focus:border-slate-600",
-      primary:
-        "mt-5 w-full py-4 text-lg rounded-xl bg-blue-600 hover:bg-blue-700 transition text-white",
-    }),
-    []
+  // Hooks for project and thought operations
+  const projectActions = useProjectActions(
+    projects,
+    setProjects,
+    activeProjectId,
+    setActiveProjectId
   );
 
-  const hasRoadmap = phases.length > 0;
+  const thoughtActions = useThoughtActions(thoughts, setThoughts);
 
-  function start() {
-    if (!idea.trim()) return;
-    setPhases(generateLocalRoadmap());
-    // Auto-set project name from idea
-    if (!projectName) {
-      setProjectName(idea.trim());
+  // Notifications
+  useNotifications({
+    thoughts,
+    projects,
+    onDismissReminder: thoughtActions.dismissReminder,
+  });
+
+  // Derived state
+  const activeProject = useMemo(
+    () => projects.find((p) => p.id === activeProjectId) ?? null,
+    [projects, activeProjectId]
+  );
+
+  const hasRoadmap = activeProject !== null && activeProject.phases.length > 0;
+
+  // Load from localStorage (with migration)
+  useEffect(() => {
+    const data = loadFromStorage();
+    setProjects(data.projects);
+    setThoughts(data.thoughts);
+    setActiveProjectId(data.activeProjectId);
+    setTheme(data.theme);
+
+    // If there's an active project, start on roadmap view
+    if (data.activeProjectId && data.projects.length > 0) {
+      setCurrentView("roadmap");
     }
-    // Navigate to roadmap view
+
+    setIsLoaded(true);
+  }, []);
+
+  // Persist theme changes
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem(STORAGE_KEYS.THEME, theme);
+    }
+  }, [theme, isLoaded]);
+
+  // UI styles
+  const ui = useMemo(() => {
+    const isDark = theme === "dark";
+    return {
+      page: isDark
+        ? "min-h-screen bg-[radial-gradient(1400px_800px_at_50%_0%,rgba(56,189,248,0.16),transparent_62%),linear-gradient(to_bottom,#050b18,#060b16)] text-slate-100"
+        : "min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-900",
+      canvas: "ml-[280px] min-h-screen flex justify-center",
+      stage: "w-full max-w-[1280px] px-10 md:px-14 py-16",
+      subtitle: isDark ? "text-slate-300/70" : "text-slate-600",
+      input: isDark
+        ? "w-full p-5 text-lg bg-transparent border border-slate-700/80 rounded-xl outline-none placeholder:text-slate-500 focus:border-slate-600"
+        : "w-full p-5 text-lg bg-white border border-slate-200 rounded-xl outline-none placeholder:text-slate-400 focus:border-slate-400",
+      primary: isDark
+        ? "mt-5 w-full py-4 text-lg rounded-xl bg-blue-600 hover:bg-blue-700 transition text-white"
+        : "mt-5 w-full py-4 text-lg rounded-xl bg-sky-600 hover:bg-sky-700 transition text-white",
+    };
+  }, [theme]);
+
+  // Start a new project
+  function startProject() {
+    if (!idea.trim()) return;
+
+    projectActions.addProject(idea.trim(), idea.trim());
+    setIdea("");
     setCurrentView("roadmap");
   }
 
-  function reset() {
-    setIdea("");
-    setPhases([]);
-    setProjectName("");
-    setNotes([]);
-    setCurrentView("home");
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(PROJECT_NAME_KEY);
-    localStorage.removeItem(NOTES_KEY);
+  // Handle phase updates from Roadmap
+  function handlePhasesChange(newPhases: Phase[]) {
+    if (activeProjectId) {
+      projectActions.updateProjectPhases(activeProjectId, newPhases);
+    }
   }
 
-  function addNote(text: string) {
-    const newNote: Note = {
-      id: uid(),
-      text,
-      createdAt: Date.now(),
-    };
-    setNotes((prev) => [...prev, newNote]);
-  }
-
-  function deleteNote(id: string) {
-    setNotes((prev) => prev.filter((n) => n.id !== id));
-  }
-
+  // Handle navigation
   function handleNavigate(view: ViewType) {
     setCurrentView(view);
   }
 
-  // Determine what to render in the canvas
+  // Reset everything (for debugging/development)
+  function handleReset() {
+    setProjects([]);
+    setActiveProjectId(null);
+    setThoughts([]);
+    setCurrentView("home");
+    setIdea("");
+    localStorage.removeItem(STORAGE_KEYS.PROJECTS);
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_PROJECT_ID);
+    localStorage.removeItem(STORAGE_KEYS.THOUGHTS);
+  }
+
+  // Render the appropriate view
   function renderView() {
-    // Notes view
-    if (currentView === "notes") {
+    // Thoughts view
+    if (currentView === "thoughts") {
       return (
-        <NotesView
-          notes={notes}
-          onAddNote={addNote}
-          onDeleteNote={deleteNote}
+        <ThoughtsView
+          thoughts={thoughts}
+          projects={projects}
+          onAddThought={thoughtActions.addThought}
+          onDeleteThought={thoughtActions.deleteThought}
+          onLinkToProject={thoughtActions.linkToProject}
+          onScheduleThought={thoughtActions.scheduleThought}
+          onUnscheduleThought={thoughtActions.unscheduleThought}
+          theme={theme}
+        />
+      );
+    }
+
+    // Calendar view
+    if (currentView === "calendar") {
+      return (
+        <CalendarView
+          thoughts={thoughts}
+          projects={projects}
+          onUnschedule={thoughtActions.unscheduleThought}
+          onNavigateToThoughts={() => setCurrentView("thoughts")}
           theme={theme}
         />
       );
     }
 
     // Roadmap view (when project exists and selected)
-    if (currentView === "roadmap" && hasRoadmap) {
+    if (currentView === "roadmap" && activeProject) {
       return (
         <>
           {/* Header */}
@@ -193,7 +172,11 @@ export default function Page() {
             </p>
           </header>
 
-          <Roadmap phases={phases} setPhases={setPhases} theme={theme} />
+          <Roadmap
+            phases={activeProject.phases}
+            setPhases={handlePhasesChange}
+            theme={theme}
+          />
         </>
       );
     }
@@ -217,16 +200,21 @@ export default function Page() {
           <input
             value={idea}
             onChange={(e) => setIdea(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && start()}
+            onKeyDown={(e) => e.key === "Enter" && startProject()}
             placeholder="Describe your project or idea..."
             className={ui.input}
           />
-          <button onClick={start} className={ui.primary}>
+          <button onClick={startProject} className={ui.primary}>
             Start planning
           </button>
         </div>
       </>
     );
+  }
+
+  // Don't render until loaded (prevents flash)
+  if (!isLoaded) {
+    return null;
   }
 
   return (
@@ -235,20 +223,24 @@ export default function Page() {
       <Sidebar
         theme={theme}
         onThemeToggle={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-        projectName={projectName}
-        phases={phases}
-        notes={notes}
-        hasRoadmap={hasRoadmap}
+        projects={projects}
+        activeProjectId={activeProjectId}
+        onSelectProject={projectActions.selectProject}
+        onAddProject={() => {
+          setCurrentView("home");
+          setIdea("");
+        }}
+        onUpdateProjectStatus={projectActions.updateProjectStatus}
+        thoughts={thoughts}
         currentView={currentView}
         onNavigate={handleNavigate}
-        onReset={reset}
+        onReset={handleReset}
+        getProjectProgress={projectActions.getProjectProgress}
       />
 
       {/* CANVAS */}
       <div className={ui.canvas}>
-        <section className={ui.stage}>
-          {renderView()}
-        </section>
+        <section className={ui.stage}>{renderView()}</section>
       </div>
     </main>
   );

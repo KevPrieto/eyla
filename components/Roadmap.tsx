@@ -2,25 +2,14 @@
 
 import React, { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import type { Phase, Step, ThemeMode } from "@/types";
 
-/* ---------- types ---------- */
-export interface Step {
-  id: string;
-  text: string;
-  completed: boolean;
-}
-
-export interface Phase {
-  id: string;
-  name: string;
-  steps: Step[];
-}
-
-type ThemeMode = "dark" | "light";
+// Re-export types for backwards compatibility
+export type { Phase, Step };
 
 type RoadmapProps = {
   phases: Phase[];
-  setPhases: React.Dispatch<React.SetStateAction<Phase[]>>;
+  setPhases: (phases: Phase[]) => void;
   theme?: ThemeMode;
 };
 
@@ -169,90 +158,91 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
   );
 
   function setStepText(stepId: string, text: string) {
-    setPhases((prev) =>
-      prev.map((p) => ({
-        ...p,
-        steps: p.steps.map((s) => (s.id === stepId ? { ...s, text } : s)),
-      }))
-    );
+    const newPhases = phases.map((p) => ({
+      ...p,
+      steps: p.steps.map((s) => (s.id === stepId ? { ...s, text } : s)),
+    }));
+    setPhases(newPhases);
   }
 
   function focusStep(linearIndex: number) {
     setIsEditing(false);
-    setPhases((prev) => setFocusByLinearIndex(prev, linearIndex));
+    setPhases(setFocusByLinearIndex(phases, linearIndex));
   }
 
   function completeCurrent() {
     if (!current) return;
-    setPhases((prev) => {
-      const flatPrev = flatten(prev);
-      const idx = flatPrev.findIndex((r) => r.stepId === current.stepId);
-      if (idx === -1) return prev;
-      const after = prev.map((p, pi) => ({
-        ...p,
-        steps: p.steps.map((s, si) => {
-          const ref = flatPrev.find((r) => r.phaseIndex === pi && r.stepIndex === si);
-          if (!ref) return s;
-          return { ...s, completed: ref.linearIndex <= idx ? true : s.completed };
-        }),
-      }));
-      const newFlat = flatten(after);
-      const newIdx = firstIncompleteIndex(newFlat);
-      if (newIdx === -1) return after;
-      return setFocusByLinearIndex(after, newIdx);
-    });
+    const idx = flat.findIndex((r) => r.stepId === current.stepId);
+    if (idx === -1) return;
+    const after = phases.map((p, pi) => ({
+      ...p,
+      steps: p.steps.map((s, si) => {
+        const ref = flat.find((r) => r.phaseIndex === pi && r.stepIndex === si);
+        if (!ref) return s;
+        return { ...s, completed: ref.linearIndex <= idx ? true : s.completed };
+      }),
+    }));
+    const newFlat = flatten(after);
+    const newIdx = firstIncompleteIndex(newFlat);
+    if (newIdx === -1) {
+      setPhases(after);
+      return;
+    }
+    setPhases(setFocusByLinearIndex(after, newIdx));
   }
 
   function addStepBefore() {
     if (!current) return;
-    setPhases((prev) =>
-      prev.map((p, pi) => {
-        if (pi !== current.phaseIndex) return p;
-        const i = current.stepIndex;
-        return {
-          ...p,
-          steps: [
-            ...p.steps.slice(0, i),
-            { id: uid(), text: "New step", completed: false },
-            ...p.steps.slice(i),
-          ],
-        };
-      })
-    );
+    const newPhases = phases.map((p, pi) => {
+      if (pi !== current.phaseIndex) return p;
+      const i = current.stepIndex;
+      return {
+        ...p,
+        steps: [
+          ...p.steps.slice(0, i),
+          { id: uid(), text: "New step", completed: false },
+          ...p.steps.slice(i),
+        ],
+      };
+    });
+    setPhases(newPhases);
   }
 
   function addStepAfter() {
     if (!current) return;
-    setPhases((prev) =>
-      prev.map((p, pi) => {
-        if (pi !== current.phaseIndex) return p;
-        const i = current.stepIndex;
-        return {
-          ...p,
-          steps: [
-            ...p.steps.slice(0, i + 1),
-            { id: uid(), text: "New step", completed: false },
-            ...p.steps.slice(i + 1),
-          ],
-        };
-      })
-    );
+    const newPhases = phases.map((p, pi) => {
+      if (pi !== current.phaseIndex) return p;
+      const i = current.stepIndex;
+      return {
+        ...p,
+        steps: [
+          ...p.steps.slice(0, i + 1),
+          { id: uid(), text: "New step", completed: false },
+          ...p.steps.slice(i + 1),
+        ],
+      };
+    });
+    setPhases(newPhases);
   }
 
   function removeCurrent() {
     if (!current) return;
-    setPhases((prev) => {
-      const updated = prev.map((p, pi) => {
-        if (pi !== current.phaseIndex) return p;
-        return { ...p, steps: p.steps.filter((s) => s.id !== current.stepId) };
-      });
-      // Recalculate focus after removal
-      const newFlat = flatten(updated);
-      if (newFlat.length === 0) return updated;
-      const newFocusIdx = firstIncompleteIndex(newFlat);
-      if (newFocusIdx === -1) return updated;
-      return setFocusByLinearIndex(updated, newFocusIdx);
+    const updated = phases.map((p, pi) => {
+      if (pi !== current.phaseIndex) return p;
+      return { ...p, steps: p.steps.filter((s) => s.id !== current.stepId) };
     });
+    // Recalculate focus after removal
+    const newFlat = flatten(updated);
+    if (newFlat.length === 0) {
+      setPhases(updated);
+      return;
+    }
+    const newFocusIdx = firstIncompleteIndex(newFlat);
+    if (newFocusIdx === -1) {
+      setPhases(updated);
+      return;
+    }
+    setPhases(setFocusByLinearIndex(updated, newFocusIdx));
   }
 
   // Phase context (passive indicators)
@@ -260,6 +250,13 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
     const idx = current ? current.phaseIndex : -1;
     return phases.map((p, i) => ({ id: p.id, name: p.name, active: i === idx }));
   }, [phases, current]);
+
+  // Progress percentage (informational, not motivational per PRD v4.2)
+  const progressPercent = useMemo(() => {
+    if (flat.length === 0) return 0;
+    const completed = flat.filter((s) => s.completed).length;
+    return Math.round((completed / flat.length) * 100);
+  }, [flat]);
 
   return (
     <div className="w-full">
@@ -271,6 +268,12 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
             <div className={`text-xs ${p.active ? ui.title : ui.sub}`}>{p.name}</div>
           </div>
         ))}
+        {/* Progress percentage - muted, secondary, informational only */}
+        {flat.length > 0 && (
+          <div className={`text-xs ${ui.hint} ml-2`}>
+            {progressPercent}%
+          </div>
+        )}
       </div>
 
       {/* HEADER */}
