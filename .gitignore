@@ -20,6 +20,10 @@
 # production
 /build
 
+# EYLA sensitive documentation
+
+/docs/
+
 # misc
 .DS_Store
 *.pem
