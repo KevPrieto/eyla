@@ -51,56 +51,53 @@ export default function SoftTimeline({
     return flat.slice(currentIndex + 1).filter((x) => !x.step.completed).slice(0, maxNext);
   }, [flat, currentIndex, maxNext]);
 
-  const ui = useMemo(() => {
-    if (theme === "light") {
-      return {
-        label: "text-slate-500",
-        text: "text-slate-800",
-        meta: "text-slate-500",
-        divider: "border-slate-200/70",
-        empty: "text-slate-500",
-      };
-    }
-    return {
-      label: "text-slate-500",
-      text: "text-slate-200",
-      meta: "text-slate-500",
-      divider: "border-slate-800/60",
-      empty: "text-slate-500",
-    };
-  }, [theme]);
+  const isDark = theme === "dark";
 
   return (
     <div className="select-none">
-      <div className={`text-[11px] uppercase tracking-wider ${ui.label}`}>Now</div>
+      <div className={`text-[11px] uppercase tracking-wider ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+        Now
+      </div>
       <div className="mt-1">
         {now ? (
           <>
-            <div className={`text-sm leading-snug ${ui.text}`}>
+            <div className={`text-sm leading-snug ${isDark ? "text-slate-200" : "text-slate-800"}`}>
               {now.step.text || "Untitled step"}
             </div>
-            <div className={`text-[11px] mt-0.5 ${ui.meta}`}>{now.phaseName}</div>
+            <div className={`text-[11px] mt-0.5 ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+              {now.phaseName}
+            </div>
           </>
         ) : (
-          <div className={`text-xs ${ui.empty}`}>No current step.</div>
+          <div className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+            No current step.
+          </div>
         )}
       </div>
 
-      <div className={`my-3 border-t ${ui.divider}`} />
+      <div className={`my-3 border-t ${isDark ? "border-slate-800/60" : "border-slate-200/70"}`} />
 
-      <div className={`text-[11px] uppercase tracking-wider ${ui.label}`}>Next</div>
+      <div className={`text-[11px] uppercase tracking-wider ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+        Next
+      </div>
       <div className="mt-1 space-y-2">
         {next.length ? (
           next.map((it) => (
             <div key={it.step.id} className="group">
-              <div className={`text-xs leading-snug ${ui.text} group-hover:opacity-100 opacity-90`}>
+              <div className={`text-xs leading-snug opacity-90 group-hover:opacity-100 ${
+                isDark ? "text-slate-200" : "text-slate-800"
+              }`}>
                 {it.step.text || "Untitled step"}
               </div>
-              <div className={`text-[11px] mt-0.5 ${ui.meta}`}>{it.phaseName}</div>
+              <div className={`text-[11px] mt-0.5 ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+                {it.phaseName}
+              </div>
             </div>
           ))
         ) : (
-          <div className={`text-xs ${ui.empty}`}>Nothing queued.</div>
+          <div className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+            Nothing queued.
+          </div>
         )}
       </div>
     </div>

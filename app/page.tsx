@@ -8,7 +8,12 @@ type Mode = "roadmap" | "thoughts" | "workspace";
 type ThemeMode = "dark" | "light";
 
 function uid() {
-  return crypto.randomUUID();
+  // Safe fallback for environments without crypto.randomUUID
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback: timestamp + random + counter
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
 const STORAGE_KEY = "eyla-project";
