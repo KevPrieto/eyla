@@ -27,14 +27,11 @@ type RoadmapProps = {
 /* ---------- helpers ---------- */
 
 function uid() {
-  // Safe fallback for environments without crypto.randomUUID
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  // Fallback: timestamp + random + counter
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${Math.random().toString(36).substr(2, 9)}`;
 }
-
 
 type FlatRef = {
   phaseIndex: number;
@@ -106,8 +103,7 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
   const flat = useMemo(() => flatten(phases), [phases]);
 
   const currentLinearIndex = useMemo(() => {
-    const idx = firstIncompleteIndex(flat);
-    return idx;
+    return firstIncompleteIndex(flat);
   }, [flat]);
 
   const done = useMemo(() => allDone(flat), [flat]);
@@ -120,12 +116,12 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
   const past = useMemo(() => {
     if (!flat.length) return [];
     const i = currentLinearIndex === -1 ? flat.length : currentLinearIndex;
-    return flat.slice(Math.max(0, i - 3), i); // last 3 completed
+    return flat.slice(Math.max(0, i - 3), i);
   }, [flat, currentLinearIndex]);
 
   const future = useMemo(() => {
     if (!flat.length || currentLinearIndex === -1) return [];
-    return flat.slice(currentLinearIndex + 1).slice(0, 3); // next 3
+    return flat.slice(currentLinearIndex + 1).slice(0, 3);
   }, [flat, currentLinearIndex]);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -149,6 +145,7 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
             dotOff: "bg-slate-700",
             hint: "text-slate-500",
             cardHover: "hover:border-slate-700/90 hover:bg-[#0b1220]/70",
+            pastIndicator: "text-slate-500",
           }
         : {
             title: "text-slate-900",
@@ -166,6 +163,7 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
             dotOff: "bg-slate-300",
             hint: "text-slate-500",
             cardHover: "hover:border-slate-300 hover:bg-slate-50",
+            pastIndicator: "text-slate-400",
           },
     [theme]
   );
@@ -186,9 +184,6 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
 
   function completeCurrent() {
     if (!current) return;
-    const nextIndex = Math.min(current.linearIndex + 1, flat.length - 1);
-
-    // mark current completed and move focus to next
     setPhases((prev) => {
       const flatPrev = flatten(prev);
       const idx = flatPrev.findIndex((r) => r.stepId === current.stepId);
@@ -201,10 +196,9 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
           return { ...s, completed: ref.linearIndex <= idx ? true : s.completed };
         }),
       }));
-      // focus becomes next incomplete
       const newFlat = flatten(after);
       const newIdx = firstIncompleteIndex(newFlat);
-      if (newIdx === -1) return after; // done
+      if (newIdx === -1) return after;
       return setFocusByLinearIndex(after, newIdx);
     });
   }
@@ -247,15 +241,21 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
 
   function removeCurrent() {
     if (!current) return;
-    setPhases((prev) =>
-      prev.map((p, pi) => {
+    setPhases((prev) => {
+      const updated = prev.map((p, pi) => {
         if (pi !== current.phaseIndex) return p;
         return { ...p, steps: p.steps.filter((s) => s.id !== current.stepId) };
-      })
-    );
+      });
+      // Recalculate focus after removal
+      const newFlat = flatten(updated);
+      if (newFlat.length === 0) return updated;
+      const newFocusIdx = firstIncompleteIndex(newFlat);
+      if (newFocusIdx === -1) return updated;
+      return setFocusByLinearIndex(updated, newFocusIdx);
+    });
   }
 
-  // phase context (passive)
+  // Phase context (passive indicators)
   const phaseDots = useMemo(() => {
     const idx = current ? current.phaseIndex : -1;
     return phases.map((p, i) => ({ id: p.id, name: p.name, active: i === idx }));
@@ -276,23 +276,25 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
       {/* HEADER */}
       <div className="text-center mb-10">
         <h2 className={`text-3xl md:text-4xl font-semibold ${ui.title}`}>
-          {done ? "You’re done." : "Focus on one step."}
+          {done ? "All steps complete." : "Focus on one step."}
         </h2>
         <p className={`mt-2 ${ui.sub}`}>
-          {done ? "Nothing else for now." : "The path is still here—hover and move through it."}
+          {done
+            ? "You can revisit any step or reset to start fresh."
+            : "Click any step to refocus. The path stays with you."}
         </p>
       </div>
 
-      {/* ROADMAP FIELD (past / current / future) */}
+      {/* ROADMAP (cognitive order: past -> present -> future) */}
       <div className="w-full flex flex-col items-center gap-6">
-        {/* FUTURE (preview) */}
+        {/* PAST (behind - calm, settled) */}
         <div className="w-full max-w-[920px]">
           <div className={`text-[11px] uppercase tracking-wider ${ui.hint} mb-2`}>
-            Ahead
+            Behind
           </div>
           <div className="space-y-2">
-            {future.length ? (
-              future.map((s) => (
+            {past.length ? (
+              past.map((s) => (
                 <button
                   key={s.stepId}
                   onClick={() => focusStep(s.linearIndex)}
@@ -300,26 +302,29 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
                     "w-full text-left rounded-xl border px-4 py-3 transition",
                     ui.frame,
                     ui.cardHover,
-                    "opacity-70 hover:opacity-100",
+                    "opacity-60 hover:opacity-100",
                   ].join(" ")}
-                  title="Click to bring this step into focus"
+                  title="Click to revisit this step"
                 >
-                  <div className={`text-sm ${ui.title}`}>{s.text || "Untitled step"}</div>
-                  <div className={`text-[11px] mt-0.5 ${ui.sub}`}>{s.phaseName}</div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className={`text-sm ${ui.title}`}>
+                      <span className={`mr-2 ${ui.pastIndicator}`}>done</span>
+                      {s.text || "Untitled step"}
+                    </div>
+                    <div className={`text-[11px] ${ui.sub}`}>{s.phaseName}</div>
+                  </div>
                 </button>
               ))
             ) : (
-              <div className={`text-sm ${ui.sub} opacity-70`}>
-                {flat.length ? "No upcoming steps." : "No roadmap yet."}
-              </div>
+              <div className={`text-sm ${ui.sub} opacity-70`}>No completed steps yet.</div>
             )}
           </div>
         </div>
 
-        {/* CURRENT (focus) */}
+        {/* CURRENT (focus - dominant) */}
         <div className="w-full max-w-[920px]">
           <div className={`text-[11px] uppercase tracking-wider ${ui.hint} mb-2`}>
-            Current
+            Now
           </div>
 
           <AnimatePresence mode="wait">
@@ -378,7 +383,7 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
                         {current.text || "Untitled step"}
                       </div>
                       <div className={`text-xs mt-1 ${ui.sub}`}>
-                        Click to edit • {current.phaseName}
+                        Click to edit · {current.phaseName}
                       </div>
                     </button>
                   ) : (
@@ -393,78 +398,72 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
                           if (e.key === "Escape") setIsEditing(false);
                         }}
                         className={`w-full bg-transparent outline-none text-xl md:text-2xl font-medium ${ui.input}`}
-                        placeholder="Write the step…"
+                        placeholder="Write the step..."
                       />
                       <div className={`text-xs mt-1 ${ui.sub}`}>Enter to finish editing</div>
                     </div>
                   )}
 
-                  {/* primary action */}
+                  {/* primary action (single CTA) */}
                   <div className="mt-7 flex items-center justify-between gap-3">
                     <button
                       onClick={completeCurrent}
                       className={`px-5 py-3 rounded-xl text-sm md:text-base font-medium transition ${ui.primary}`}
                     >
-                      Complete
+                      Mark complete
                     </button>
 
                     <div className={`text-xs md:text-sm ${ui.sub}`}>
-                      Hover to add/remove • Click future/past to refocus
+                      Hover to add or remove steps
                     </div>
                   </div>
                 </>
               ) : (
                 <div className="text-center">
                   <div className={`text-lg ${ui.sub}`}>
-                    You can reset the project or reopen the last step.
+                    You can revisit any step above, or reset to start fresh.
                   </div>
-                  {flat.length ? (
+                  {flat.length > 0 && (
                     <button
                       onClick={() => focusStep(Math.max(0, flat.length - 1))}
                       className={`mt-5 px-5 py-3 rounded-xl text-sm md:text-base font-medium transition ${ui.ghost}`}
                     >
                       Reopen last step
                     </button>
-                  ) : null}
+                  )}
                 </div>
               )}
             </motion.div>
           </AnimatePresence>
         </div>
 
-        {/* PAST (history) */}
+        {/* FUTURE (ahead - silent, patient) */}
         <div className="w-full max-w-[920px]">
           <div className={`text-[11px] uppercase tracking-wider ${ui.hint} mb-2`}>
-            Behind
+            Ahead
           </div>
           <div className="space-y-2">
-            {past.length ? (
-              past
-                .slice()
-                .reverse()
-                .map((s) => (
-                  <button
-                    key={s.stepId}
-                    onClick={() => focusStep(s.linearIndex)}
-                    className={[
-                      "w-full text-left rounded-xl border px-4 py-3 transition",
-                      ui.frame,
-                      ui.cardHover,
-                      "opacity-60 hover:opacity-100",
-                    ].join(" ")}
-                    title="Click to reopen this step (reversible)"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className={`text-sm ${ui.title}`}>
-                        <span className="opacity-70">✓ </span>
-                        {s.text || "Untitled step"}
-                      </div>
-                      <div className={`text-[11px] ${ui.sub}`}>{s.phaseName}</div>
-                    </div>
-                  </button>
-                ))
+            {future.length ? (
+              future.map((s) => (
+                <button
+                  key={s.stepId}
+                  onClick={() => focusStep(s.linearIndex)}
+                  className={[
+                    "w-full text-left rounded-xl border px-4 py-3 transition",
+                    ui.frame,
+                    ui.cardHover,
+                    "opacity-50 hover:opacity-80",
+                  ].join(" ")}
+                  title="Click to focus on this step"
+                >
+                  <div className={`text-sm ${ui.title}`}>{s.text || "Untitled step"}</div>
+                  <div className={`text-[11px] mt-0.5 ${ui.sub}`}>{s.phaseName}</div>
+                </button>
+              ))
             ) : (
-              <div className={`text-sm ${ui.sub} opacity-70`}>No completed steps yet.</div>
+              <div className={`text-sm ${ui.sub} opacity-70`}>
+                {flat.length ? "No upcoming steps." : "No roadmap yet."}
+              </div>
             )}
           </div>
         </div>

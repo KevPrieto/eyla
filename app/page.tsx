@@ -4,15 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Roadmap, { Phase } from "@/components/Roadmap";
 import SoftTimeline from "@/components/SoftTimeline";
 
-type Mode = "roadmap" | "thoughts" | "workspace";
 type ThemeMode = "dark" | "light";
 
 function uid() {
-  // Safe fallback for environments without crypto.randomUUID
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  // Fallback: timestamp + random + counter
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
@@ -49,7 +46,6 @@ function generateLocalRoadmap(): Phase[] {
 }
 
 export default function Page() {
-  const [mode, setMode] = useState<Mode>("roadmap");
   const [theme, setTheme] = useState<ThemeMode>("dark");
   const [idea, setIdea] = useState("");
   const [phases, setPhases] = useState<Phase[]>([]);
@@ -81,10 +77,6 @@ export default function Page() {
 
       sidebar:
         "fixed left-0 top-0 h-screen w-[280px] bg-[#050b16] border-r border-slate-800",
-
-      navItem:
-        "w-full text-left px-4 py-3 text-[15px] rounded-lg transition text-slate-300/80 hover:text-slate-100 hover:bg-slate-900/40",
-      navItemActive: "bg-slate-800/60 text-cyan-300",
 
       canvas: "ml-[280px] min-h-screen flex justify-center",
 
@@ -119,28 +111,24 @@ export default function Page() {
 
   return (
     <main className={ui.page}>
-      {/* SIDEBAR (quiet, contextual) */}
+      {/* SIDEBAR (quiet, contextual memory) */}
       <aside className={ui.sidebar}>
         <div className="h-full flex flex-col px-7 py-8">
-          {/* logo (only one here) */}
+          {/* Logo mark (preserve aspect ratio) */}
           <div className="flex items-center justify-center mb-10">
-            <img src="/eyla-spiral.png" alt="EYLA" className="h-14 w-14" />
+            <img
+              src="/eyla-spiral.png"
+              alt="EYLA"
+              className="h-14 w-auto object-contain"
+            />
           </div>
 
-          <nav className="flex flex-col gap-2">
-            {(["roadmap", "thoughts", "workspace"] as Mode[]).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`${ui.navItem} ${mode === m ? ui.navItemActive : ""}`}
-              >
-                {m[0].toUpperCase() + m.slice(1)}
-              </button>
-            ))}
-          </nav>
+          {/* Context label */}
+          <div className={ui.hint}>Focus</div>
 
-          <div className={`my-8 border-t ${ui.divider}`} />
+          <div className={`my-6 border-t ${ui.divider}`} />
 
+          {/* Timeline (read-only memory) */}
           <div className={ui.hint}>Timeline</div>
           <div className="mt-3">
             <SoftTimeline phases={phases} theme={theme} maxNext={2} />
@@ -156,11 +144,11 @@ export default function Page() {
               Toggle theme
             </button>
 
-            {hasRoadmap ? (
+            {hasRoadmap && (
               <button onClick={reset} className={ui.ghost}>
                 Reset
               </button>
-            ) : null}
+            )}
           </div>
         </div>
       </aside>
@@ -168,48 +156,39 @@ export default function Page() {
       {/* CANVAS */}
       <div className={ui.canvas}>
         <section className={ui.stage}>
-          {/* Stage identity (wordmark lives here) */}
+          {/* Stage identity (wordmark - width-based for proper sizing) */}
           <header className="text-center mb-14 md:mb-16">
             <img
               src="/eyla-wordmark.png"
               alt="EYLA"
-              className="h-12 md:h-14 mx-auto mb-3"
+              className="h-auto mx-auto mb-3 object-contain"
+              style={{ width: "clamp(200px, 35vw, 280px)" }}
             />
             <p className={`${ui.subtitle} text-base md:text-lg`}>
-              Turn ideas into clear paths.
+              {hasRoadmap
+                ? "One step at a time. The rest can wait."
+                : "What do you want to work on?"}
             </p>
           </header>
 
-          {mode === "roadmap" && (
-            <>
-              {!hasRoadmap && (
-                <div className="max-w-2xl mx-auto">
-                  <input
-                    value={idea}
-                    onChange={(e) => setIdea(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && start()}
-                    placeholder="What do you want to work on?"
-                    className={ui.input}
-                  />
-                  <button onClick={start} className={ui.primary}>
-                    Start planning
-                  </button>
-                </div>
-              )}
-
-              {hasRoadmap && (
-                <Roadmap phases={phases} setPhases={setPhases} theme={theme} />
-              )}
-            </>
+          {/* Roadmap mode (only mode for now) */}
+          {!hasRoadmap && (
+            <div className="max-w-2xl mx-auto">
+              <input
+                value={idea}
+                onChange={(e) => setIdea(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && start()}
+                placeholder="Describe your project or idea..."
+                className={ui.input}
+              />
+              <button onClick={start} className={ui.primary}>
+                Start planning
+              </button>
+            </div>
           )}
 
-          {mode !== "roadmap" && (
-            <div className="text-center mt-24">
-              <h2 className="text-3xl capitalize">{mode}</h2>
-              <p className={`${ui.subtitle} mt-2 text-lg`}>
-                This space will evolve in the next iteration.
-              </p>
-            </div>
+          {hasRoadmap && (
+            <Roadmap phases={phases} setPhases={setPhases} theme={theme} />
           )}
         </section>
       </div>

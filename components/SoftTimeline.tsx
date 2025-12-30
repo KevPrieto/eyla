@@ -37,8 +37,7 @@ export default function SoftTimeline({
   const flat = useMemo(() => flatten(phases), [phases]);
 
   const currentIndex = useMemo(() => {
-    const idx = flat.findIndex((x) => !x.step.completed);
-    return idx;
+    return flat.findIndex((x) => !x.step.completed);
   }, [flat]);
 
   const now = useMemo(() => {
@@ -53,49 +52,54 @@ export default function SoftTimeline({
 
   const isDark = theme === "dark";
 
+  const colors = {
+    hint: "text-slate-500",
+    primary: isDark ? "text-slate-200" : "text-slate-800",
+    secondary: "text-slate-500",
+    divider: isDark ? "border-slate-800/60" : "border-slate-200/70",
+  };
+
   return (
     <div className="select-none">
-      <div className={`text-[11px] uppercase tracking-wider ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+      <div className={`text-[11px] uppercase tracking-wider ${colors.hint}`}>
         Now
       </div>
       <div className="mt-1">
         {now ? (
           <>
-            <div className={`text-sm leading-snug ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+            <div className={`text-sm leading-snug ${colors.primary}`}>
               {now.step.text || "Untitled step"}
             </div>
-            <div className={`text-[11px] mt-0.5 ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+            <div className={`text-[11px] mt-0.5 ${colors.secondary}`}>
               {now.phaseName}
             </div>
           </>
         ) : (
-          <div className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+          <div className={`text-xs ${colors.secondary}`}>
             No current step.
           </div>
         )}
       </div>
 
-      <div className={`my-3 border-t ${isDark ? "border-slate-800/60" : "border-slate-200/70"}`} />
+      <div className={`my-3 border-t ${colors.divider}`} />
 
-      <div className={`text-[11px] uppercase tracking-wider ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+      <div className={`text-[11px] uppercase tracking-wider ${colors.hint}`}>
         Next
       </div>
       <div className="mt-1 space-y-2">
         {next.length ? (
           next.map((it) => (
             <div key={it.step.id} className="group">
-              <div className={`text-xs leading-snug opacity-90 group-hover:opacity-100 ${
-                isDark ? "text-slate-200" : "text-slate-800"
-              }`}>
+              <div className={`text-xs leading-snug opacity-90 group-hover:opacity-100 ${colors.primary}`}>
                 {it.step.text || "Untitled step"}
               </div>
-              <div className={`text-[11px] mt-0.5 ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+              <div className={`text-[11px] mt-0.5 ${colors.secondary}`}>
                 {it.phaseName}
               </div>
             </div>
           ))
         ) : (
-          <div className={`text-xs ${isDark ? "text-slate-500" : "text-slate-500"}`}>
+          <div className={`text-xs ${colors.secondary}`}>
             Nothing queued.
           </div>
         )}

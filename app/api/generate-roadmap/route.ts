@@ -39,7 +39,16 @@ export async function POST(req: Request) {
       input: prompt
     });
 
-    const textOutput = completion.output[0].content[0].text;
+    // Type-safe access to completion output
+    const firstOutput = completion.output[0];
+    if (!firstOutput || !('content' in firstOutput) || !Array.isArray(firstOutput.content)) {
+      throw new Error("Unexpected response format from OpenAI");
+    }
+    const textContent = firstOutput.content[0];
+    if (!textContent || !('text' in textContent)) {
+      throw new Error("No text content in response");
+    }
+    const textOutput = textContent.text as string;
     const result = JSON.parse(textOutput);
 
     return NextResponse.json(result);
