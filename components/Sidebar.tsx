@@ -49,30 +49,30 @@ export default function Sidebar({
   const ui = {
     sidebar: isDark
       ? "fixed left-0 top-0 h-screen w-[280px] bg-[#050b16] border-r border-slate-800"
-      : "fixed left-0 top-0 h-screen w-[280px] bg-slate-50 border-r border-slate-200",
+      : "fixed left-0 top-0 h-screen w-[280px] bg-white/40 backdrop-blur-xl border-r border-white/50",
     sectionLabel: isDark
       ? "text-[11px] uppercase tracking-wider text-slate-500 mb-2"
       : "text-[11px] uppercase tracking-wider text-slate-400 mb-2",
     divider: isDark
       ? "border-t border-slate-800/60 my-4"
-      : "border-t border-slate-200 my-4",
+      : "border-t border-white/40 my-4",
     ghost: isDark
       ? "text-xs text-slate-500 hover:text-slate-300 hover:scale-105 transition-all duration-150 cursor-pointer"
       : "text-xs text-slate-400 hover:text-slate-600 hover:scale-105 transition-all duration-150 cursor-pointer",
     navItem: `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 cursor-pointer w-full text-left`,
     navItemActive: isDark
       ? "bg-slate-800/50 text-slate-100"
-      : "bg-slate-100 text-slate-900",
+      : "bg-white/60 text-slate-800 shadow-sm shadow-violet-200/20",
     navItemInactive: isDark
       ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
-      : "text-slate-500 hover:text-slate-900 hover:bg-slate-100",
+      : "text-slate-500 hover:text-slate-800 hover:bg-white/50",
     navIcon: "w-4 h-4 opacity-70",
     badge: isDark
       ? "ml-auto text-[10px] text-slate-500 bg-slate-800/50 px-1.5 py-0.5 rounded"
-      : "ml-auto text-[10px] text-slate-400 bg-slate-200/50 px-1.5 py-0.5 rounded",
+      : "ml-auto text-[10px] text-slate-500 bg-white/60 px-1.5 py-0.5 rounded",
     addButton: isDark
       ? "flex items-center gap-2 px-3 py-2 text-xs text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 rounded-lg transition-all w-full"
-      : "flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all w-full",
+      : "flex items-center gap-2 px-3 py-2 text-xs text-slate-400 hover:text-slate-700 hover:bg-white/50 rounded-lg transition-all w-full",
     emptyText: isDark
       ? "text-xs text-slate-600 italic px-3 py-2"
       : "text-xs text-slate-400 italic px-3 py-2",

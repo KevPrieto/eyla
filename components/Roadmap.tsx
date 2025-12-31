@@ -63,12 +63,6 @@ function allDone(flat: FlatRef[]) {
   return flat.length > 0 && flat.every((x) => x.completed);
 }
 
-/**
- * Reversible deterministic model:
- * - Focus step = index i
- * - All < i => completed true
- * - All >= i => completed false (i is current)
- */
 function setFocusByLinearIndex(
   prev: Phase[],
   focusIndex: number
@@ -102,59 +96,55 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
     return flat[currentLinearIndex];
   }, [flat, currentLinearIndex]);
 
+  // Past: up to 2 steps before current
   const past = useMemo(() => {
     if (!flat.length) return [];
     const i = currentLinearIndex === -1 ? flat.length : currentLinearIndex;
-    return flat.slice(Math.max(0, i - 3), i);
+    return flat.slice(Math.max(0, i - 2), i);
   }, [flat, currentLinearIndex]);
 
+  // Future: up to 2 steps after current
   const future = useMemo(() => {
     if (!flat.length || currentLinearIndex === -1) return [];
-    return flat.slice(currentLinearIndex + 1).slice(0, 3);
+    return flat.slice(currentLinearIndex + 1).slice(0, 2);
   }, [flat, currentLinearIndex]);
 
   const [isEditing, setIsEditing] = useState(false);
 
+  const isDark = theme === "dark";
+
   const ui = useMemo(
     () =>
-      theme === "dark"
+      isDark
         ? {
             title: "text-slate-100",
             sub: "text-slate-400",
             frame: "border-slate-800/70 bg-[#0b1220]/55",
+            frameCurrent: "border-cyan-500/40 bg-[#0b1220]/70 shadow-lg shadow-cyan-500/10",
             input: "text-slate-100 placeholder:text-slate-500",
             primary: "bg-blue-600 hover:bg-blue-700 text-white",
-            ghost:
-              "text-slate-300/80 hover:text-slate-100 border border-slate-700/70 hover:bg-slate-900/40",
-            danger:
-              "border border-rose-500/40 text-rose-300 hover:text-rose-200 hover:bg-rose-500/10",
-            chip:
-              "text-[11px] px-2 py-1 rounded-full border border-slate-700/70 text-slate-300/80",
-            dotOn: "bg-cyan-400",
-            dotOff: "bg-slate-700",
+            ghost: "text-slate-300/80 hover:text-slate-100 border border-slate-700/70 hover:bg-slate-900/40",
+            danger: "border border-rose-500/40 text-rose-300 hover:text-rose-200 hover:bg-rose-500/10",
+            chip: "text-[11px] px-2 py-1 rounded-full border border-cyan-500/40 text-cyan-400 bg-cyan-900/20",
+            pathColor: "#334155",
+            pathGlow: "#22d3ee",
             hint: "text-slate-500",
-            cardHover: "hover:border-slate-700/90 hover:bg-[#0b1220]/70",
-            pastIndicator: "text-slate-500",
           }
         : {
-            title: "text-slate-900",
-            sub: "text-slate-600",
-            frame: "border-slate-200 bg-white",
-            input: "text-slate-900 placeholder:text-slate-400",
-            primary: "bg-sky-600 hover:bg-sky-700 text-white",
-            ghost:
-              "text-slate-700 hover:text-slate-900 border border-slate-200 hover:bg-slate-50",
-            danger:
-              "border border-rose-300 text-rose-600 hover:bg-rose-50",
-            chip:
-              "text-[11px] px-2 py-1 rounded-full border border-slate-200 text-slate-600",
-            dotOn: "bg-sky-500",
-            dotOff: "bg-slate-300",
-            hint: "text-slate-500",
-            cardHover: "hover:border-slate-300 hover:bg-slate-50",
-            pastIndicator: "text-slate-400",
+            title: "text-slate-800",
+            sub: "text-slate-500",
+            frame: "border-white/50 bg-white/50 backdrop-blur-xl shadow-md shadow-violet-100/20",
+            frameCurrent: "border-sky-300/60 bg-white/70 backdrop-blur-xl shadow-xl shadow-violet-200/30",
+            input: "text-slate-800 placeholder:text-slate-400",
+            primary: "bg-sky-500 hover:bg-sky-600 text-white",
+            ghost: "text-slate-600 hover:text-slate-800 border border-white/60 hover:bg-white/60",
+            danger: "border border-rose-200 text-rose-500 hover:bg-rose-50/60",
+            chip: "text-[11px] px-2 py-1 rounded-full border border-sky-300/60 text-sky-600 bg-sky-50/50",
+            pathColor: "#e0e7ff",
+            pathGlow: "#0ea5e9",
+            hint: "text-slate-400",
           },
-    [theme]
+    [isDark]
   );
 
   function setStepText(stepId: string, text: string) {
@@ -191,23 +181,6 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
     setPhases(setFocusByLinearIndex(after, newIdx));
   }
 
-  function addStepBefore() {
-    if (!current) return;
-    const newPhases = phases.map((p, pi) => {
-      if (pi !== current.phaseIndex) return p;
-      const i = current.stepIndex;
-      return {
-        ...p,
-        steps: [
-          ...p.steps.slice(0, i),
-          { id: uid(), text: "New step", completed: false },
-          ...p.steps.slice(i),
-        ],
-      };
-    });
-    setPhases(newPhases);
-  }
-
   function addStepAfter() {
     if (!current) return;
     const newPhases = phases.map((p, pi) => {
@@ -231,7 +204,6 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
       if (pi !== current.phaseIndex) return p;
       return { ...p, steps: p.steps.filter((s) => s.id !== current.stepId) };
     });
-    // Recalculate focus after removal
     const newFlat = flatten(updated);
     if (newFlat.length === 0) {
       setPhases(updated);
@@ -245,231 +217,242 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
     setPhases(setFocusByLinearIndex(updated, newFocusIdx));
   }
 
-  // Phase context (passive indicators)
-  const phaseDots = useMemo(() => {
-    const idx = current ? current.phaseIndex : -1;
-    return phases.map((p, i) => ({ id: p.id, name: p.name, active: i === idx }));
-  }, [phases, current]);
-
-  // Progress percentage (informational, not motivational per PRD v4.2)
+  // Progress percentage
   const progressPercent = useMemo(() => {
     if (flat.length === 0) return 0;
     const completed = flat.filter((s) => s.completed).length;
     return Math.round((completed / flat.length) * 100);
   }, [flat]);
 
+  // Total visible steps for path calculation
+  const visibleSteps = past.length + (current ? 1 : 0) + future.length;
+
   return (
     <div className="w-full">
-      {/* PHASE CONTEXT (passive, not navigation) */}
-      <div className="flex items-center justify-center gap-5 mb-10 select-none">
-        {phaseDots.map((p) => (
-          <div key={p.id} className="flex items-center gap-2">
-            <div className={`h-2 w-2 rounded-full ${p.active ? ui.dotOn : ui.dotOff}`} />
-            <div className={`text-xs ${p.active ? ui.title : ui.sub}`}>{p.name}</div>
-          </div>
-        ))}
-        {/* Progress percentage - muted, secondary, informational only */}
-        {flat.length > 0 && (
-          <div className={`text-xs ${ui.hint} ml-2`}>
-            {progressPercent}%
-          </div>
-        )}
-      </div>
-
-      {/* HEADER */}
-      <div className="text-center mb-10">
-        <h2 className={`text-3xl md:text-4xl font-semibold ${ui.title}`}>
-          {done ? "All steps complete." : "Focus on one step."}
+      {/* Header */}
+      <div className="text-center mb-12">
+        <h2 className={`text-2xl md:text-3xl font-semibold ${ui.title}`}>
+          {done ? "Journey complete." : "Your path forward"}
         </h2>
         <p className={`mt-2 ${ui.sub}`}>
           {done
-            ? "You can revisit any step or reset to start fresh."
-            : "Click any step to refocus. The path stays with you."}
+            ? "You can revisit any step or start fresh."
+            : `${progressPercent}% complete · Click any step to refocus`}
         </p>
       </div>
 
-      {/* ROADMAP (cognitive order: past -> present -> future) */}
-      <div className="w-full flex flex-col items-center gap-6">
-        {/* PAST (behind - calm, settled) */}
-        <div className="w-full max-w-[920px]">
-          <div className={`text-[11px] uppercase tracking-wider ${ui.hint} mb-2`}>
-            Behind
-          </div>
-          <div className="space-y-2">
-            {past.length ? (
-              past.map((s) => (
-                <button
-                  key={s.stepId}
-                  onClick={() => focusStep(s.linearIndex)}
-                  className={[
-                    "w-full text-left rounded-xl border px-4 py-3 transition",
-                    ui.frame,
-                    ui.cardHover,
-                    "opacity-60 hover:opacity-100",
-                  ].join(" ")}
-                  title="Click to revisit this step"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className={`text-sm ${ui.title}`}>
-                      <span className={`mr-2 ${ui.pastIndicator}`}>done</span>
-                      {s.text || "Untitled step"}
-                    </div>
-                    <div className={`text-[11px] ${ui.sub}`}>{s.phaseName}</div>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <div className={`text-sm ${ui.sub} opacity-70`}>No completed steps yet.</div>
-            )}
-          </div>
-        </div>
+      {/* Horizontal Path Container */}
+      <div className="relative w-full overflow-x-auto pb-8">
+        <div className="flex items-center justify-center gap-4 min-w-max px-8 py-6">
 
-        {/* CURRENT (focus - dominant) */}
-        <div className="w-full max-w-[920px]">
-          <div className={`text-[11px] uppercase tracking-wider ${ui.hint} mb-2`}>
-            Now
-          </div>
+          {/* SVG Path Layer */}
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            preserveAspectRatio="none"
+            style={{ minWidth: `${visibleSteps * 200 + 100}px` }}
+          >
+            <defs>
+              <linearGradient id="pathGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor={ui.pathColor} stopOpacity="0.3" />
+                <stop offset="50%" stopColor={ui.pathGlow} stopOpacity="0.6" />
+                <stop offset="100%" stopColor={ui.pathColor} stopOpacity="0.3" />
+              </linearGradient>
+            </defs>
+            {/* Flowing path line */}
+            <path
+              d={`M 40 50% Q 25% 40%, 50% 50% T 100% 50%`}
+              fill="none"
+              stroke="url(#pathGradient)"
+              strokeWidth="3"
+              strokeLinecap="round"
+              style={{ vectorEffect: "non-scaling-stroke" }}
+            />
+          </svg>
 
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={current ? current.stepId : "done"}
-              initial={{ opacity: 0, y: 10, filter: "blur(2px)" }}
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              exit={{ opacity: 0, y: -10, filter: "blur(2px)" }}
-              transition={{ duration: 0.22 }}
-              className={[
-                "group w-full rounded-2xl border p-6 md:p-8 transition relative",
-                ui.frame,
-                "hover:border-slate-700/90",
-              ].join(" ")}
+          {/* Past Steps */}
+          {past.map((step, i) => (
+            <motion.button
+              key={step.stepId}
+              onClick={() => focusStep(step.linearIndex)}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className={`
+                relative flex-shrink-0 w-[160px] rounded-2xl border p-4 transition-all duration-200
+                ${ui.frame}
+                opacity-50 hover:opacity-80 hover:scale-105
+                cursor-pointer
+              `}
+              title="Click to revisit"
             >
-              {!done && current ? (
-                <>
-                  {/* top row */}
-                  <div className="flex items-center justify-between gap-3 mb-4">
-                    <span className={ui.chip}>CURRENT STEP</span>
+              {/* Connector dot */}
+              <div className={`absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full ${isDark ? "bg-slate-700" : "bg-violet-200"}`} />
 
-                    {/* controls appear on hover only */}
-                    <div className="opacity-0 group-hover:opacity-100 transition flex items-center gap-2">
-                      <button
-                        onClick={addStepBefore}
-                        className={`px-3 py-1.5 rounded-full text-xs transition ${ui.ghost}`}
-                        title="Add a step before"
-                      >
-                        + Before
-                      </button>
-                      <button
-                        onClick={addStepAfter}
-                        className={`px-3 py-1.5 rounded-full text-xs transition ${ui.ghost}`}
-                        title="Add a step after"
-                      >
-                        + After
-                      </button>
-                      <button
-                        onClick={removeCurrent}
-                        className={`px-3 py-1.5 rounded-full text-xs transition ${ui.danger}`}
-                        title="Remove current step"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
+              <div className={`text-[10px] uppercase tracking-wider mb-2 ${ui.hint}`}>Done</div>
+              <div className={`text-sm ${ui.title} line-clamp-2`}>{step.text || "Untitled"}</div>
+              <div className={`text-[10px] mt-2 ${ui.sub}`}>{step.phaseName}</div>
+            </motion.button>
+          ))}
 
-                  {/* editable title */}
-                  {!isEditing ? (
-                    <button
-                      onClick={() => setIsEditing(true)}
-                      className="w-full text-left"
-                      title="Click to edit"
-                    >
-                      <div className={`text-xl md:text-2xl font-medium ${ui.title}`}>
-                        {current.text || "Untitled step"}
-                      </div>
-                      <div className={`text-xs mt-1 ${ui.sub}`}>
-                        Click to edit · {current.phaseName}
-                      </div>
-                    </button>
-                  ) : (
-                    <div>
-                      <input
-                        autoFocus
-                        value={current.text}
-                        onChange={(e) => setStepText(current.stepId, e.target.value)}
-                        onBlur={() => setIsEditing(false)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") setIsEditing(false);
-                          if (e.key === "Escape") setIsEditing(false);
-                        }}
-                        className={`w-full bg-transparent outline-none text-xl md:text-2xl font-medium ${ui.input}`}
-                        placeholder="Write the step..."
-                      />
-                      <div className={`text-xs mt-1 ${ui.sub}`}>Enter to finish editing</div>
-                    </div>
-                  )}
+          {/* Connector line before current */}
+          {past.length > 0 && current && (
+            <div className={`w-8 h-1 rounded-full ${isDark ? "bg-gradient-to-r from-slate-700 to-cyan-500" : "bg-gradient-to-r from-violet-200 to-sky-400"}`} />
+          )}
 
-                  {/* primary action (single CTA) */}
-                  <div className="mt-7 flex items-center justify-between gap-3">
-                    <button
-                      onClick={completeCurrent}
-                      className={`px-5 py-3 rounded-xl text-sm md:text-base font-medium transition ${ui.primary}`}
-                    >
-                      Mark complete
-                    </button>
+          {/* Current Step - Dominant */}
+          {current && !done && (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={current.stepId}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.3 }}
+                className={`
+                  relative flex-shrink-0 w-[280px] rounded-[24px] border p-6 z-10
+                  ${ui.frameCurrent}
+                `}
+              >
+                {/* Glow effect */}
+                <div className={`absolute inset-0 rounded-[24px] ${isDark ? "bg-cyan-500/5" : "bg-sky-200/20"} blur-xl -z-10`} />
 
-                    <div className={`text-xs md:text-sm ${ui.sub}`}>
-                      Hover to add or remove steps
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center">
-                  <div className={`text-lg ${ui.sub}`}>
-                    You can revisit any step above, or reset to start fresh.
-                  </div>
-                  {flat.length > 0 && (
-                    <button
-                      onClick={() => focusStep(Math.max(0, flat.length - 1))}
-                      className={`mt-5 px-5 py-3 rounded-xl text-sm md:text-base font-medium transition ${ui.ghost}`}
-                    >
-                      Reopen last step
-                    </button>
-                  )}
+                {/* Current badge */}
+                <div className="flex items-center justify-between mb-4">
+                  <span className={ui.chip}>NOW</span>
+                  <span className={`text-xs ${ui.sub}`}>{current.phaseName}</span>
                 </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </div>
 
-        {/* FUTURE (ahead - silent, patient) */}
-        <div className="w-full max-w-[920px]">
-          <div className={`text-[11px] uppercase tracking-wider ${ui.hint} mb-2`}>
-            Ahead
-          </div>
-          <div className="space-y-2">
-            {future.length ? (
-              future.map((s) => (
+                {/* Editable text */}
+                {!isEditing ? (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="w-full text-left"
+                    title="Click to edit"
+                  >
+                    <div className={`text-lg font-medium ${ui.title}`}>
+                      {current.text || "Untitled step"}
+                    </div>
+                  </button>
+                ) : (
+                  <input
+                    autoFocus
+                    value={current.text}
+                    onChange={(e) => setStepText(current.stepId, e.target.value)}
+                    onBlur={() => setIsEditing(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === "Escape") setIsEditing(false);
+                    }}
+                    className={`w-full bg-transparent outline-none text-lg font-medium ${ui.input}`}
+                    placeholder="Write the step..."
+                  />
+                )}
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 mt-5">
+                  <button
+                    onClick={completeCurrent}
+                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition ${ui.primary}`}
+                  >
+                    Complete
+                  </button>
+                  <button
+                    onClick={addStepAfter}
+                    className={`px-3 py-2.5 rounded-xl text-sm transition ${ui.ghost}`}
+                    title="Add step"
+                  >
+                    +
+                  </button>
+                  <button
+                    onClick={removeCurrent}
+                    className={`px-3 py-2.5 rounded-xl text-sm transition ${ui.danger}`}
+                    title="Remove"
+                  >
+                    ×
+                  </button>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          )}
+
+          {/* Done state */}
+          {done && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className={`
+                relative flex-shrink-0 w-[280px] rounded-[24px] border p-6
+                ${ui.frameCurrent}
+              `}
+            >
+              <div className={`text-center ${ui.title}`}>
+                <div className="text-2xl mb-2">✓</div>
+                <div className="text-lg font-medium">All complete</div>
                 <button
-                  key={s.stepId}
-                  onClick={() => focusStep(s.linearIndex)}
-                  className={[
-                    "w-full text-left rounded-xl border px-4 py-3 transition",
-                    ui.frame,
-                    ui.cardHover,
-                    "opacity-50 hover:opacity-80",
-                  ].join(" ")}
-                  title="Click to focus on this step"
+                  onClick={() => focusStep(Math.max(0, flat.length - 1))}
+                  className={`mt-4 px-4 py-2 rounded-xl text-sm transition ${ui.ghost}`}
                 >
-                  <div className={`text-sm ${ui.title}`}>{s.text || "Untitled step"}</div>
-                  <div className={`text-[11px] mt-0.5 ${ui.sub}`}>{s.phaseName}</div>
+                  Revisit last step
                 </button>
-              ))
-            ) : (
-              <div className={`text-sm ${ui.sub} opacity-70`}>
-                {flat.length ? "No upcoming steps." : "No roadmap yet."}
               </div>
-            )}
-          </div>
+            </motion.div>
+          )}
+
+          {/* Connector line after current */}
+          {future.length > 0 && current && (
+            <div className={`w-8 h-1 rounded-full ${isDark ? "bg-gradient-to-r from-cyan-500 to-slate-700" : "bg-gradient-to-r from-sky-400 to-violet-200"}`} />
+          )}
+
+          {/* Future Steps */}
+          {future.map((step, i) => (
+            <motion.button
+              key={step.stepId}
+              onClick={() => focusStep(step.linearIndex)}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className={`
+                relative flex-shrink-0 w-[160px] rounded-2xl border p-4 transition-all duration-200
+                ${ui.frame}
+                opacity-40 hover:opacity-70 hover:scale-105
+                cursor-pointer
+              `}
+              title="Click to focus"
+            >
+              {/* Connector dot */}
+              <div className={`absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full ${isDark ? "bg-slate-700" : "bg-violet-200"}`} />
+
+              <div className={`text-[10px] uppercase tracking-wider mb-2 ${ui.hint}`}>Next</div>
+              <div className={`text-sm ${ui.title} line-clamp-2`}>{step.text || "Untitled"}</div>
+              <div className={`text-[10px] mt-2 ${ui.sub}`}>{step.phaseName}</div>
+            </motion.button>
+          ))}
+
+          {/* Future indicator when more steps exist */}
+          {flat.length > currentLinearIndex + 3 && (
+            <div className={`flex items-center gap-1 ${ui.hint}`}>
+              <div className={`w-2 h-2 rounded-full ${isDark ? "bg-slate-600" : "bg-violet-200"}`} />
+              <div className={`w-2 h-2 rounded-full ${isDark ? "bg-slate-700" : "bg-violet-100"}`} />
+              <span className="text-xs ml-1">+{flat.length - currentLinearIndex - 3} more</span>
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Phase indicators - subtle, below path */}
+      <div className="flex items-center justify-center gap-6 mt-4">
+        {phases.map((p, i) => {
+          const isActive = current ? current.phaseIndex === i : false;
+          return (
+            <div key={p.id} className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full transition-colors ${
+                isActive
+                  ? (isDark ? "bg-cyan-400" : "bg-sky-500")
+                  : (isDark ? "bg-slate-700" : "bg-violet-200")
+              }`} />
+              <span className={`text-xs ${isActive ? ui.title : ui.sub}`}>{p.name}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

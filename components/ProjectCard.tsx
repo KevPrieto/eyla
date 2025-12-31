@@ -22,14 +22,14 @@ export default function ProjectCard({
   const isDark = theme === "dark";
 
   const ui = {
-    card: `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 cursor-pointer w-full text-left ${
+    card: `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 cursor-pointer w-full text-left ${
       isActive
         ? isDark
           ? "bg-slate-800/50 text-slate-100"
-          : "bg-slate-100 text-slate-900"
+          : "bg-white/60 text-slate-800 shadow-sm shadow-violet-200/20"
         : isDark
         ? "text-slate-400 hover:text-slate-200 hover:bg-slate-800/30"
-        : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+        : "text-slate-500 hover:text-slate-700 hover:bg-white/50"
     }`,
     icon: "w-4 h-4 opacity-70",
     name: "text-sm truncate flex-1",

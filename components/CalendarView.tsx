@@ -33,22 +33,22 @@ export default function CalendarView({
     title: isDark ? "text-slate-100" : "text-slate-900",
     sub: isDark ? "text-slate-400" : "text-slate-600",
     emptyState: isDark ? "text-slate-500" : "text-slate-400",
-    dateLabel: isDark ? "text-slate-300 text-sm font-medium" : "text-slate-700 text-sm font-medium",
+    dateLabel: isDark ? "text-slate-300 text-sm font-medium" : "text-slate-600 text-sm font-medium",
     dateLabelPast: isDark ? "text-slate-500 text-sm" : "text-slate-400 text-sm",
     card: isDark
-      ? "rounded-xl border border-slate-800/70 bg-[#0b1220]/55 p-4 transition hover:border-slate-700/90"
-      : "rounded-xl border border-slate-200 bg-white p-4 transition hover:border-slate-300",
+      ? "rounded-2xl border border-slate-800/50 bg-[#0b1220]/60 backdrop-blur-sm p-5 transition hover:border-slate-700/90"
+      : "rounded-3xl border border-white/50 bg-white/60 backdrop-blur-xl p-5 shadow-lg shadow-violet-200/20 transition hover:shadow-xl",
     cardPast: isDark
-      ? "rounded-xl border border-slate-800/50 bg-[#0b1220]/30 p-4 opacity-60"
-      : "rounded-xl border border-slate-200/70 bg-slate-50 p-4 opacity-60",
+      ? "rounded-2xl border border-slate-800/40 bg-[#0b1220]/30 backdrop-blur-sm p-5 opacity-50"
+      : "rounded-3xl border border-white/30 bg-white/40 backdrop-blur-xl p-5 opacity-50 shadow-md shadow-violet-100/10",
     text: isDark ? "text-slate-100 text-sm" : "text-slate-900 text-sm",
     time: isDark ? "text-slate-500 text-xs" : "text-slate-400 text-xs",
     projectTag: isDark
-      ? "text-[10px] px-2 py-0.5 rounded-full bg-cyan-900/30 text-cyan-400"
-      : "text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-600",
+      ? "text-xs px-2 py-0.5 rounded-full bg-cyan-900/30 text-cyan-400"
+      : "text-xs px-2 py-0.5 rounded-full bg-sky-100/70 text-sky-600",
     button: isDark
-      ? "text-xs text-slate-500 hover:text-slate-300 transition"
-      : "text-xs text-slate-400 hover:text-slate-700 transition",
+      ? "p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-900/20 transition"
+      : "p-2 rounded-xl text-slate-400 hover:text-rose-500 hover:bg-rose-50/60 transition",
     linkButton: isDark
       ? "text-sm text-slate-400 hover:text-slate-200 transition underline underline-offset-2"
       : "text-sm text-slate-500 hover:text-slate-900 transition underline underline-offset-2",
@@ -171,8 +171,11 @@ export default function CalendarView({
                             <button
                               onClick={() => onUnschedule(thought.id)}
                               className={ui.button}
+                              title="Remove reminder"
                             >
-                              Remove
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
                             </button>
                           </div>
                         </div>

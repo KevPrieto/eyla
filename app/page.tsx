@@ -78,13 +78,13 @@ export default function Page() {
     return {
       page: isDark
         ? "min-h-screen bg-[radial-gradient(1400px_800px_at_50%_0%,rgba(56,189,248,0.16),transparent_62%),linear-gradient(to_bottom,#050b18,#060b16)] text-slate-100"
-        : "min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-900",
+        : "min-h-screen bg-gradient-to-br from-[#EDE7F6] via-[#F3F8FF] to-[#E3F6F8] text-slate-800",
       canvas: "ml-[280px] min-h-screen flex justify-center",
       stage: "w-full max-w-[1280px] px-10 md:px-14 py-16",
       subtitle: isDark ? "text-slate-300/70" : "text-slate-600",
       input: isDark
         ? "w-full p-5 text-lg bg-transparent border border-slate-700/80 rounded-xl outline-none placeholder:text-slate-500 focus:border-slate-600"
-        : "w-full p-5 text-lg bg-white border border-slate-200 rounded-xl outline-none placeholder:text-slate-400 focus:border-slate-400",
+        : "w-full p-5 text-lg bg-white/50 backdrop-blur-sm border border-white/60 rounded-2xl outline-none placeholder:text-slate-400 focus:border-sky-300 text-slate-700",
       primary: isDark
         ? "mt-5 w-full py-4 text-lg rounded-xl bg-blue-600 hover:bg-blue-700 transition text-white"
         : "mt-5 w-full py-4 text-lg rounded-xl bg-sky-600 hover:bg-sky-700 transition text-white",

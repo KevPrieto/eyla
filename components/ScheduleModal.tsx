@@ -53,16 +53,16 @@ export default function ScheduleModal({
     overlay: "fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm",
     modal: isDark
       ? "bg-[#0b1220] border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-xl"
-      : "bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-md shadow-xl",
+      : "bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-6 w-full max-w-md shadow-xl shadow-violet-300/20",
     title: isDark ? "text-slate-100 text-lg font-medium" : "text-slate-900 text-lg font-medium",
     label: isDark ? "text-slate-400 text-sm" : "text-slate-600 text-sm",
     input: isDark
       ? "w-full mt-2 p-3 rounded-lg bg-slate-900/50 border border-slate-700 text-slate-100 outline-none focus:border-slate-600"
-      : "w-full mt-2 p-3 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 outline-none focus:border-slate-400",
+      : "w-full mt-2 p-3 rounded-xl bg-white/60 border border-white/60 text-slate-700 outline-none focus:border-sky-300",
     preview: isDark ? "text-slate-500 text-xs mt-2" : "text-slate-400 text-xs mt-2",
     thoughtPreview: isDark
       ? "text-slate-300 text-sm p-3 rounded-lg bg-slate-800/50 mb-4 line-clamp-2"
-      : "text-slate-700 text-sm p-3 rounded-lg bg-slate-50 mb-4 line-clamp-2",
+      : "text-slate-600 text-sm p-3 rounded-xl bg-white/50 mb-4 line-clamp-2",
     buttonPrimary: isDark
       ? "px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm transition"
       : "px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-sm transition",
