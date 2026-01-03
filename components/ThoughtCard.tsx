@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Thought, Project, ThemeMode } from "@/types";
 import { formatRelativeTime } from "@/utils/date";
+import VisualNoteEditor from "./VisualNoteEditor";
 
 interface ThoughtCardProps {
   thought: Thought;
@@ -11,6 +12,7 @@ interface ThoughtCardProps {
   onLinkProject: (projectId: string | undefined) => void;
   onSchedule: (timestamp: number) => void;
   onUnschedule: () => void;
+  onSetVisualNote: (imageData: string | undefined) => void;
   onDelete: () => void;
   theme: ThemeMode;
 }
@@ -21,6 +23,7 @@ export default function ThoughtCard({
   onLinkProject,
   onSchedule,
   onUnschedule,
+  onSetVisualNote,
   onDelete,
   theme,
 }: ThoughtCardProps) {
@@ -28,6 +31,7 @@ export default function ThoughtCard({
   const [showReminderInput, setShowReminderInput] = useState(false);
   const [showProjectSelect, setShowProjectSelect] = useState(false);
   const [reminderDateTime, setReminderDateTime] = useState("");
+  const [showVisualEditor, setShowVisualEditor] = useState(false);
 
   // Find linked project name
   const linkedProject = thought.projectId
@@ -177,7 +181,7 @@ export default function ThoughtCard({
             }
           }}
           className={thought.scheduledAt ? ui.iconButtonActive : ui.iconButton}
-          title={thought.scheduledAt ? "Remove reminder" : "Add reminder"}
+          title={thought.scheduledAt ? "Clear reminder" : "Revisit later"}
         >
           {/* Bell icon */}
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -197,7 +201,7 @@ export default function ThoughtCard({
             setShowReminderInput(false);
           }}
           className={linkedProject ? ui.iconButtonActive : ui.iconButton}
-          title={linkedProject ? "Change project" : "Link to project"}
+          title={linkedProject ? "Change project" : "Connect to project"}
         >
           {/* Folder icon */}
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -206,6 +210,23 @@ export default function ThoughtCard({
               strokeLinejoin="round"
               strokeWidth={1.5}
               d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+            />
+          </svg>
+        </button>
+
+        {/* Visual note button (Addendum 4.1) - subtle, no CTA */}
+        <button
+          onClick={() => setShowVisualEditor(true)}
+          className={thought.visualNote ? ui.iconButtonActive : ui.iconButton}
+          title={thought.visualNote ? "View sketch" : "Add sketch"}
+        >
+          {/* Pencil icon */}
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
             />
           </svg>
         </button>
@@ -246,7 +267,7 @@ export default function ThoughtCard({
             />
             <div className="flex items-center gap-2 mt-2">
               <button onClick={handleReminderConfirm} className={ui.inlineButton}>
-                Set reminder
+                Remember this
               </button>
               <button
                 onClick={() => {
@@ -289,6 +310,15 @@ export default function ThoughtCard({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Visual Note Editor (Addendum 4.1) - modal overlay */}
+      <VisualNoteEditor
+        isOpen={showVisualEditor}
+        onClose={() => setShowVisualEditor(false)}
+        initialData={thought.visualNote}
+        onSave={onSetVisualNote}
+        theme={theme}
+      />
     </motion.div>
   );
 }

@@ -13,6 +13,7 @@ interface ThoughtsViewProps {
   onLinkToProject: (thoughtId: string, projectId: string | undefined) => void;
   onScheduleThought: (thoughtId: string, timestamp: number) => void;
   onUnscheduleThought: (thoughtId: string) => void;
+  onSetVisualNote: (thoughtId: string, imageData: string | undefined) => void;
   theme: ThemeMode;
 }
 
@@ -26,6 +27,7 @@ export default function ThoughtsView({
   onLinkToProject,
   onScheduleThought,
   onUnscheduleThought,
+  onSetVisualNote,
   theme,
 }: ThoughtsViewProps) {
   const isDark = theme === "dark";
@@ -112,7 +114,7 @@ export default function ThoughtsView({
             filter === "all" ? ui.filterActive : ui.filterInactive
           }`}
         >
-          All ({thoughts.length})
+          All
         </button>
         <button
           onClick={() => setFilter("scheduled")}
@@ -120,7 +122,7 @@ export default function ThoughtsView({
             filter === "scheduled" ? ui.filterActive : ui.filterInactive
           }`}
         >
-          Scheduled ({scheduledCount})
+          Scheduled
         </button>
         <button
           onClick={() => setFilter("unscheduled")}
@@ -128,7 +130,7 @@ export default function ThoughtsView({
             filter === "unscheduled" ? ui.filterActive : ui.filterInactive
           }`}
         >
-          Unscheduled ({thoughts.length - scheduledCount})
+          Unscheduled
         </button>
       </div>
 
@@ -151,6 +153,7 @@ export default function ThoughtsView({
                   onLinkProject={(projectId) => onLinkToProject(thought.id, projectId)}
                   onSchedule={(timestamp) => onScheduleThought(thought.id, timestamp)}
                   onUnschedule={() => onUnscheduleThought(thought.id)}
+                  onSetVisualNote={(imageData) => onSetVisualNote(thought.id, imageData)}
                   onDelete={() => onDeleteThought(thought.id)}
                   theme={theme}
                 />

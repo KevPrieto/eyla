@@ -78,6 +78,11 @@ export function useThoughtActions(
     updateThought(thoughtId, { reminderDismissed: true });
   }, [updateThought]);
 
+  // Set visual note (Addendum 4.1)
+  const setVisualNote = useCallback((thoughtId: string, imageData: string | undefined) => {
+    updateThought(thoughtId, { visualNote: imageData });
+  }, [updateThought]);
+
   // Get thoughts for a specific project
   const getThoughtsForProject = useCallback((projectId: string): Thought[] => {
     return thoughts.filter((t) => t.projectId === projectId);
@@ -114,6 +119,7 @@ export function useThoughtActions(
     scheduleThought,
     unscheduleThought,
     dismissReminder,
+    setVisualNote,
     getThoughtsForProject,
     getUnlinkedThoughts,
     getScheduledThoughts,

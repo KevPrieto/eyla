@@ -39,8 +39,8 @@ export default function CalendarView({
       ? "rounded-2xl border border-slate-800/50 bg-[#0b1220]/60 backdrop-blur-sm p-5 transition hover:border-slate-700/90"
       : "rounded-3xl border border-white/50 bg-white/60 backdrop-blur-xl p-5 shadow-lg shadow-violet-200/20 transition hover:shadow-xl",
     cardPast: isDark
-      ? "rounded-2xl border border-slate-800/40 bg-[#0b1220]/30 backdrop-blur-sm p-5 opacity-50"
-      : "rounded-3xl border border-white/30 bg-white/40 backdrop-blur-xl p-5 opacity-50 shadow-md shadow-violet-100/10",
+      ? "rounded-2xl border border-slate-800/40 bg-[#0b1220]/30 backdrop-blur-sm p-5"
+      : "rounded-3xl border border-white/30 bg-white/40 backdrop-blur-xl p-5 shadow-md shadow-violet-100/10",
     text: isDark ? "text-slate-100 text-sm" : "text-slate-900 text-sm",
     time: isDark ? "text-slate-500 text-xs" : "text-slate-400 text-xs",
     projectTag: isDark

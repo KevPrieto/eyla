@@ -1,7 +1,24 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import type { Phase, Step, ThemeMode } from "@/types";
 
 // Re-export types for backwards compatibility
@@ -55,6 +72,30 @@ function flatten(phases: Phase[]): FlatRef[] {
   return out;
 }
 
+function rebuildPhasesFromFlat(flat: FlatRef[], originalPhases: Phase[]): Phase[] {
+  const newPhases: Phase[] = [];
+
+  flat.forEach((step) => {
+    let phase = newPhases.find((p) => p.name === step.phaseName);
+    if (!phase) {
+      const originalPhase = originalPhases.find((p) => p.name === step.phaseName);
+      phase = {
+        id: originalPhase?.id || uid(),
+        name: step.phaseName,
+        steps: [],
+      };
+      newPhases.push(phase);
+    }
+    phase.steps.push({
+      id: step.stepId,
+      text: step.text,
+      completed: step.completed,
+    });
+  });
+
+  return newPhases;
+}
+
 function firstIncompleteIndex(flat: FlatRef[]) {
   return flat.findIndex((x) => !x.completed);
 }
@@ -82,8 +123,179 @@ function setFocusByLinearIndex(
   }));
 }
 
+/* ---------- SortableStep Component ---------- */
+
+interface SortableStepProps {
+  step: FlatRef;
+  index: number;
+  isCurrent: boolean;
+  isPast: boolean;
+  isFuture: boolean;
+  isEditing: boolean;
+  isHovered: boolean;
+  onEdit: () => void;
+  onStopEdit: () => void;
+  onTextChange: (text: string) => void;
+  onFocus: () => void;
+  onComplete: () => void;
+  onAdd: () => void;
+  onRemove: () => void;
+  onHoverStart: () => void;
+  onHoverEnd: () => void;
+  theme: ThemeMode;
+}
+
+function SortableStep({
+  step,
+  index,
+  isCurrent,
+  isPast,
+  isFuture,
+  isEditing,
+  isHovered,
+  onEdit,
+  onStopEdit,
+  onTextChange,
+  onFocus,
+  onComplete,
+  onAdd,
+  onRemove,
+  onHoverStart,
+  onHoverEnd,
+  theme,
+}: SortableStepProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: step.stepId });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const isDark = theme === "dark";
+
+  const ui = {
+    input: isDark ? "text-slate-100 placeholder:text-slate-500" : "text-slate-800 placeholder:text-slate-400",
+    primary: isDark ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-sky-500 hover:bg-sky-600 text-white",
+    ghost: isDark
+      ? "text-slate-300/80 hover:text-slate-100 border border-slate-700/70 hover:bg-slate-900/40"
+      : "text-slate-600 hover:text-slate-800 border border-white/60 hover:bg-white/60",
+    danger: isDark
+      ? "border border-rose-500/40 text-rose-300 hover:text-rose-200 hover:bg-rose-500/10"
+      : "border border-rose-200 text-rose-500 hover:bg-rose-50/60",
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="flex justify-center my-4 cursor-grab active:cursor-grabbing"
+    >
+      <motion.div
+        className={`w-full rounded-3xl px-6 py-5 transition-all duration-200 ${
+          isDark ? "backdrop-blur-sm" : "backdrop-blur-xl"
+        } ${
+          isPast
+            ? isDark
+              ? "bg-slate-900/20 text-slate-500"
+              : "bg-white/25 text-slate-400"
+            : isCurrent
+            ? isDark
+              ? "bg-slate-800/40 text-slate-100 ring-1 ring-slate-700/30 shadow-lg shadow-slate-900/30"
+              : "bg-white/60 text-slate-800 ring-1 ring-white/40 shadow-xl shadow-violet-200/30"
+            : isDark
+            ? "bg-slate-900/15 text-slate-600"
+            : "bg-white/20 text-slate-500"
+        }`}
+        whileHover={{
+          scale: 1.01,
+          boxShadow: isDark
+            ? "0 0 24px 4px rgba(56, 189, 248, 0.12)"
+            : "0 0 28px 6px rgba(139, 92, 246, 0.15)",
+        }}
+        transition={{ duration: 0.2 }}
+        onHoverStart={onHoverStart}
+        onHoverEnd={onHoverEnd}
+      >
+        {/* Step text */}
+        {!isEditing || !isCurrent ? (
+          <button
+            onClick={isCurrent ? onEdit : onFocus}
+            className="w-full text-left"
+            title={isCurrent ? "Click to edit" : isPast ? "Click to revisit" : "Click to focus"}
+          >
+            <span className={isCurrent ? "text-lg font-medium" : "text-sm"}>
+              {step.text || "Untitled"}
+            </span>
+          </button>
+        ) : (
+          <input
+            autoFocus
+            value={step.text}
+            onChange={(e) => onTextChange(e.target.value)}
+            onBlur={onStopEdit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === "Escape") onStopEdit();
+            }}
+            className={`w-full bg-transparent outline-none text-lg font-medium ${ui.input}`}
+            placeholder="Write the step..."
+          />
+        )}
+
+        {/* Action buttons - only visible when current */}
+        <div
+          className={`flex items-center gap-2 mt-4 transition-all duration-200 ${
+            isCurrent ? "opacity-60 hover:opacity-100" : "opacity-0 h-0 overflow-hidden"
+          }`}
+        >
+          <button
+            onClick={onComplete}
+            className={`flex-1 px-4 py-2 rounded-xl text-sm font-medium transition ${ui.primary}`}
+          >
+            Complete
+          </button>
+          <button
+            onClick={onAdd}
+            className={`px-3 py-2 rounded-xl text-sm transition ${ui.ghost}`}
+            title="Add step"
+          >
+            +
+          </button>
+          <button
+            onClick={onRemove}
+            className={`px-3 py-2 rounded-xl text-sm transition ${ui.danger}`}
+            title="Remove"
+          >
+            ×
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+/* ---------- Main Roadmap Component ---------- */
+
 export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapProps) {
-  const flat = useMemo(() => flatten(phases), [phases]);
+  const [flat, setFlat] = useState<FlatRef[]>([]);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Sync flat state with phases
+  useEffect(() => {
+    setFlat(flatten(phases));
+  }, [phases]);
 
   const currentLinearIndex = useMemo(() => {
     return firstIncompleteIndex(flat);
@@ -96,21 +308,6 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
     return flat[currentLinearIndex];
   }, [flat, currentLinearIndex]);
 
-  // Past: up to 2 steps before current
-  const past = useMemo(() => {
-    if (!flat.length) return [];
-    const i = currentLinearIndex === -1 ? flat.length : currentLinearIndex;
-    return flat.slice(Math.max(0, i - 2), i);
-  }, [flat, currentLinearIndex]);
-
-  // Future: up to 2 steps after current
-  const future = useMemo(() => {
-    if (!flat.length || currentLinearIndex === -1) return [];
-    return flat.slice(currentLinearIndex + 1).slice(0, 2);
-  }, [flat, currentLinearIndex]);
-
-  const [isEditing, setIsEditing] = useState(false);
-
   const isDark = theme === "dark";
 
   const ui = useMemo(
@@ -119,33 +316,43 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
         ? {
             title: "text-slate-100",
             sub: "text-slate-400",
-            frame: "border-slate-800/70 bg-[#0b1220]/55",
-            frameCurrent: "border-cyan-500/40 bg-[#0b1220]/70 shadow-lg shadow-cyan-500/10",
-            input: "text-slate-100 placeholder:text-slate-500",
-            primary: "bg-blue-600 hover:bg-blue-700 text-white",
-            ghost: "text-slate-300/80 hover:text-slate-100 border border-slate-700/70 hover:bg-slate-900/40",
-            danger: "border border-rose-500/40 text-rose-300 hover:text-rose-200 hover:bg-rose-500/10",
-            chip: "text-[11px] px-2 py-1 rounded-full border border-cyan-500/40 text-cyan-400 bg-cyan-900/20",
-            pathColor: "#334155",
-            pathGlow: "#22d3ee",
             hint: "text-slate-500",
+            fullscreenBg: "bg-[#050b18]",
+            fullscreenButton: "text-slate-400 hover:text-slate-200 bg-slate-900/40 hover:bg-slate-800/60",
+            pathStroke: "#475569",
           }
         : {
             title: "text-slate-800",
             sub: "text-slate-500",
-            frame: "border-white/50 bg-white/50 backdrop-blur-xl shadow-md shadow-violet-100/20",
-            frameCurrent: "border-sky-300/60 bg-white/70 backdrop-blur-xl shadow-xl shadow-violet-200/30",
-            input: "text-slate-800 placeholder:text-slate-400",
-            primary: "bg-sky-500 hover:bg-sky-600 text-white",
-            ghost: "text-slate-600 hover:text-slate-800 border border-white/60 hover:bg-white/60",
-            danger: "border border-rose-200 text-rose-500 hover:bg-rose-50/60",
-            chip: "text-[11px] px-2 py-1 rounded-full border border-sky-300/60 text-sky-600 bg-sky-50/50",
-            pathColor: "#e0e7ff",
-            pathGlow: "#0ea5e9",
             hint: "text-slate-400",
+            fullscreenBg: "bg-gradient-to-br from-[#EDE7F6] via-[#F3F8FF] to-[#E3F6F8]",
+            fullscreenButton: "text-slate-600 hover:text-slate-800 bg-white/60 hover:bg-white/80",
+            pathStroke: "#cbd5e1",
           },
     [isDark]
   );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = flat.findIndex((s) => s.stepId === active.id);
+      const newIndex = flat.findIndex((s) => s.stepId === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reordered = arrayMove(flat, oldIndex, newIndex);
+        const newPhases = rebuildPhasesFromFlat(reordered, phases);
+        setPhases(newPhases);
+      }
+    }
+  }
 
   function setStepText(stepId: string, text: string) {
     const newPhases = phases.map((p) => ({
@@ -217,17 +424,24 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
     setPhases(setFocusByLinearIndex(updated, newFocusIdx));
   }
 
-  // Progress percentage
   const progressPercent = useMemo(() => {
     if (flat.length === 0) return 0;
     const completed = flat.filter((s) => s.completed).length;
     return Math.round((completed / flat.length) * 100);
   }, [flat]);
 
-  // Total visible steps for path calculation
-  const visibleSteps = past.length + (current ? 1 : 0) + future.length;
+  // ESC key handler
+  useEffect(() => {
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    }
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isFullscreen]);
 
-  return (
+  const roadmapContent = (
     <div className="w-full">
       {/* Header */}
       <div className="text-center mb-12">
@@ -237,223 +451,142 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
         <p className={`mt-2 ${ui.sub}`}>
           {done
             ? "You can revisit any step or start fresh."
-            : `${progressPercent}% complete · Click any step to refocus`}
+            : `${progressPercent}% complete · Drag to reorder`}
         </p>
       </div>
 
-      {/* Horizontal Path Container */}
-      <div className="relative w-full overflow-x-auto pb-8">
-        <div className="flex items-center justify-center gap-4 min-w-max px-8 py-6">
+      {/* Path Container */}
+      <div className="w-full max-w-lg mx-auto relative" ref={containerRef}>
+        {/* Vertical Spine */}
+        <div
+          className={`absolute left-1/2 -translate-x-1/2 top-8 bottom-8 w-0.5 pointer-events-none ${
+            isDark
+              ? "bg-gradient-to-b from-transparent via-slate-600/40 to-transparent"
+              : "bg-gradient-to-b from-transparent via-slate-300/60 to-transparent"
+          }`}
+          style={{ zIndex: 0 }}
+        />
 
-          {/* SVG Path Layer */}
-          <svg
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            preserveAspectRatio="none"
-            style={{ minWidth: `${visibleSteps * 200 + 100}px` }}
-          >
-            <defs>
-              <linearGradient id="pathGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor={ui.pathColor} stopOpacity="0.3" />
-                <stop offset="50%" stopColor={ui.pathGlow} stopOpacity="0.6" />
-                <stop offset="100%" stopColor={ui.pathColor} stopOpacity="0.3" />
-              </linearGradient>
-            </defs>
-            {/* Flowing path line */}
-            <path
-              d={`M 40 50% Q 25% 40%, 50% 50% T 100% 50%`}
-              fill="none"
-              stroke="url(#pathGradient)"
-              strokeWidth="3"
-              strokeLinecap="round"
-              style={{ vectorEffect: "non-scaling-stroke" }}
-            />
-          </svg>
+        {/* Spine Glow - follows hovered step */}
+        {hoveredIndex !== null && (
+          <motion.div
+            className={`absolute left-1/2 -translate-x-1/2 w-12 h-24 rounded-full blur-xl pointer-events-none ${
+              isDark ? "bg-sky-400/15" : "bg-violet-500/12"
+            }`}
+            initial={{ opacity: 0 }}
+            animate={{
+              opacity: 1,
+              top: `${hoveredIndex * 80 + 80}px`,
+            }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ zIndex: 0 }}
+          />
+        )}
 
-          {/* Past Steps */}
-          {past.map((step, i) => (
-            <motion.button
-              key={step.stepId}
-              onClick={() => focusStep(step.linearIndex)}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.1 }}
-              className={`
-                relative flex-shrink-0 w-[160px] rounded-2xl border p-4 transition-all duration-200
-                ${ui.frame}
-                opacity-50 hover:opacity-80 hover:scale-105
-                cursor-pointer
-              `}
-              title="Click to revisit"
-            >
-              {/* Connector dot */}
-              <div className={`absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full ${isDark ? "bg-slate-700" : "bg-violet-200"}`} />
+        {/* Steps */}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={flat.map((s) => s.stepId)} strategy={verticalListSortingStrategy}>
+            {flat.map((step, idx) => {
+              const isNewPhase = idx === 0 || step.phaseIndex !== flat[idx - 1].phaseIndex;
+              const isCurrent = step.linearIndex === currentLinearIndex;
+              const isPast = step.completed;
+              const isFuture = !step.completed && !isCurrent;
 
-              <div className={`text-[10px] uppercase tracking-wider mb-2 ${ui.hint}`}>Done</div>
-              <div className={`text-sm ${ui.title} line-clamp-2`}>{step.text || "Untitled"}</div>
-              <div className={`text-[10px] mt-2 ${ui.sub}`}>{step.phaseName}</div>
-            </motion.button>
-          ))}
-
-          {/* Connector line before current */}
-          {past.length > 0 && current && (
-            <div className={`w-8 h-1 rounded-full ${isDark ? "bg-gradient-to-r from-slate-700 to-cyan-500" : "bg-gradient-to-r from-violet-200 to-sky-400"}`} />
-          )}
-
-          {/* Current Step - Dominant */}
-          {current && !done && (
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={current.stepId}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.3 }}
-                className={`
-                  relative flex-shrink-0 w-[280px] rounded-[24px] border p-6 z-10
-                  ${ui.frameCurrent}
-                `}
-              >
-                {/* Glow effect */}
-                <div className={`absolute inset-0 rounded-[24px] ${isDark ? "bg-cyan-500/5" : "bg-sky-200/20"} blur-xl -z-10`} />
-
-                {/* Current badge */}
-                <div className="flex items-center justify-between mb-4">
-                  <span className={ui.chip}>NOW</span>
-                  <span className={`text-xs ${ui.sub}`}>{current.phaseName}</span>
-                </div>
-
-                {/* Editable text */}
-                {!isEditing ? (
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="w-full text-left"
-                    title="Click to edit"
-                  >
-                    <div className={`text-lg font-medium ${ui.title}`}>
-                      {current.text || "Untitled step"}
+              return (
+                <React.Fragment key={step.stepId}>
+                  {isNewPhase && (
+                    <div
+                      className={`text-xs uppercase tracking-wider ${
+                        idx === 0 ? "mb-4" : "mt-16 mb-4"
+                      } ${ui.hint} text-center`}
+                    >
+                      {step.phaseName}
                     </div>
-                  </button>
-                ) : (
-                  <input
-                    autoFocus
-                    value={current.text}
-                    onChange={(e) => setStepText(current.stepId, e.target.value)}
-                    onBlur={() => setIsEditing(false)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === "Escape") setIsEditing(false);
-                    }}
-                    className={`w-full bg-transparent outline-none text-lg font-medium ${ui.input}`}
-                    placeholder="Write the step..."
+                  )}
+
+                  <SortableStep
+                    step={step}
+                    index={idx}
+                    isCurrent={isCurrent}
+                    isPast={isPast}
+                    isFuture={isFuture}
+                    isEditing={isEditing && isCurrent}
+                    isHovered={hoveredIndex === idx}
+                    onEdit={() => setIsEditing(true)}
+                    onStopEdit={() => setIsEditing(false)}
+                    onTextChange={(text) => setStepText(step.stepId, text)}
+                    onFocus={() => focusStep(step.linearIndex)}
+                    onComplete={completeCurrent}
+                    onAdd={addStepAfter}
+                    onRemove={removeCurrent}
+                    onHoverStart={() => setHoveredIndex(idx)}
+                    onHoverEnd={() => setHoveredIndex(null)}
+                    theme={theme}
                   />
-                )}
+                </React.Fragment>
+              );
+            })}
+          </SortableContext>
+        </DndContext>
 
-                {/* Actions */}
-                <div className="flex items-center gap-2 mt-5">
-                  <button
-                    onClick={completeCurrent}
-                    className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-medium transition ${ui.primary}`}
-                  >
-                    Complete
-                  </button>
-                  <button
-                    onClick={addStepAfter}
-                    className={`px-3 py-2.5 rounded-xl text-sm transition ${ui.ghost}`}
-                    title="Add step"
-                  >
-                    +
-                  </button>
-                  <button
-                    onClick={removeCurrent}
-                    className={`px-3 py-2.5 rounded-xl text-sm transition ${ui.danger}`}
-                    title="Remove"
-                  >
-                    ×
-                  </button>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-          )}
-
-          {/* Done state */}
-          {done && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className={`
-                relative flex-shrink-0 w-[280px] rounded-[24px] border p-6
-                ${ui.frameCurrent}
-              `}
-            >
-              <div className={`text-center ${ui.title}`}>
-                <div className="text-2xl mb-2">✓</div>
-                <div className="text-lg font-medium">All complete</div>
-                <button
-                  onClick={() => focusStep(Math.max(0, flat.length - 1))}
-                  className={`mt-4 px-4 py-2 rounded-xl text-sm transition ${ui.ghost}`}
-                >
-                  Revisit last step
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Connector line after current */}
-          {future.length > 0 && current && (
-            <div className={`w-8 h-1 rounded-full ${isDark ? "bg-gradient-to-r from-cyan-500 to-slate-700" : "bg-gradient-to-r from-sky-400 to-violet-200"}`} />
-          )}
-
-          {/* Future Steps */}
-          {future.map((step, i) => (
-            <motion.button
-              key={step.stepId}
-              onClick={() => focusStep(step.linearIndex)}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.1 }}
-              className={`
-                relative flex-shrink-0 w-[160px] rounded-2xl border p-4 transition-all duration-200
-                ${ui.frame}
-                opacity-40 hover:opacity-70 hover:scale-105
-                cursor-pointer
-              `}
-              title="Click to focus"
-            >
-              {/* Connector dot */}
-              <div className={`absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full ${isDark ? "bg-slate-700" : "bg-violet-200"}`} />
-
-              <div className={`text-[10px] uppercase tracking-wider mb-2 ${ui.hint}`}>Next</div>
-              <div className={`text-sm ${ui.title} line-clamp-2`}>{step.text || "Untitled"}</div>
-              <div className={`text-[10px] mt-2 ${ui.sub}`}>{step.phaseName}</div>
-            </motion.button>
-          ))}
-
-          {/* Future indicator when more steps exist */}
-          {flat.length > currentLinearIndex + 3 && (
-            <div className={`flex items-center gap-1 ${ui.hint}`}>
-              <div className={`w-2 h-2 rounded-full ${isDark ? "bg-slate-600" : "bg-violet-200"}`} />
-              <div className={`w-2 h-2 rounded-full ${isDark ? "bg-slate-700" : "bg-violet-100"}`} />
-              <span className="text-xs ml-1">+{flat.length - currentLinearIndex - 3} more</span>
+        {/* Done state */}
+        {done && flat.length > 0 && (
+          <div className="w-full max-w-md mx-auto rounded-2xl border border-slate-700/50 bg-[#0b1220]/70 p-8 my-8 text-center">
+            <div className={ui.title}>
+              <div className="text-2xl mb-2">✓</div>
+              <div className="text-lg font-medium">All complete</div>
+              <button
+                onClick={() => focusStep(Math.max(0, flat.length - 1))}
+                className={`mt-4 px-4 py-2 rounded-xl text-sm transition ${isDark ? 'text-slate-300/80 hover:text-slate-100 border border-slate-700/70 hover:bg-slate-900/40' : 'text-slate-600 hover:text-slate-800 border border-white/60 hover:bg-white/60'}`}
+              >
+                Revisit last step
+              </button>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Phase indicators - subtle, below path */}
-      <div className="flex items-center justify-center gap-6 mt-4">
-        {phases.map((p, i) => {
-          const isActive = current ? current.phaseIndex === i : false;
-          return (
-            <div key={p.id} className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full transition-colors ${
-                isActive
-                  ? (isDark ? "bg-cyan-400" : "bg-sky-500")
-                  : (isDark ? "bg-slate-700" : "bg-violet-200")
-              }`} />
-              <span className={`text-xs ${isActive ? ui.title : ui.sub}`}>{p.name}</span>
-            </div>
-          );
-        })}
+          </div>
+        )}
       </div>
     </div>
+  );
+
+  return (
+    <>
+      {/* Fullscreen Toggle Button */}
+      {!isFullscreen && (
+        <button
+          onClick={() => setIsFullscreen(true)}
+          className={`fixed top-4 right-4 z-40 p-2.5 rounded-xl transition ${ui.fullscreenButton} backdrop-blur-sm`}
+          title="Enter fullscreen"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+            />
+          </svg>
+        </button>
+      )}
+
+      {/* Normal Mode */}
+      {!isFullscreen && roadmapContent}
+
+      {/* Fullscreen Mode */}
+      {isFullscreen && (
+        <div className={`fixed inset-0 z-50 ${ui.fullscreenBg} overflow-y-auto`}>
+          <button
+            onClick={() => setIsFullscreen(false)}
+            className={`fixed top-4 right-4 z-50 p-2.5 rounded-xl transition ${ui.fullscreenButton} backdrop-blur-sm`}
+            title="Exit fullscreen"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <div className="min-h-screen p-8">{roadmapContent}</div>
+        </div>
+      )}
+    </>
   );
 }

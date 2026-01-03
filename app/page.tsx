@@ -57,11 +57,6 @@ export default function Page() {
     setActiveProjectId(data.activeProjectId);
     setTheme(data.theme);
 
-    // If there's an active project, start on roadmap view
-    if (data.activeProjectId && data.projects.length > 0) {
-      setCurrentView("roadmap");
-    }
-
     setIsLoaded(true);
   }, []);
 
@@ -137,6 +132,7 @@ export default function Page() {
           onLinkToProject={thoughtActions.linkToProject}
           onScheduleThought={thoughtActions.scheduleThought}
           onUnscheduleThought={thoughtActions.unscheduleThought}
+          onSetVisualNote={thoughtActions.setVisualNote}
           theme={theme}
         />
       );

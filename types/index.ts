@@ -40,6 +40,7 @@ export interface Thought {
   projectId?: string;           // Optional project association
   scheduledAt?: number;         // Optional datetime (unix timestamp)
   reminderDismissed?: boolean;  // Track if reminder was dismissed
+  visualNote?: string;          // Optional base64 image data (Addendum 4.1)
 }
 
 // For calendar grouping

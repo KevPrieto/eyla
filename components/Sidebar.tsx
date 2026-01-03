@@ -86,6 +86,11 @@ export default function Sidebar({
   // Count scheduled thoughts
   const scheduledCount = thoughts.filter((t) => t.scheduledAt).length;
 
+  // Count thoughts linked to active project (for context display)
+  const projectThoughtsCount = activeProjectId
+    ? thoughts.filter((t) => t.projectId === activeProjectId).length
+    : 0;
+
   return (
     <aside className={ui.sidebar}>
       <div className="h-full flex flex-col px-5 py-6">
@@ -180,6 +185,14 @@ export default function Sidebar({
           variants={sectionVariants}
         >
           <div className={ui.sectionLabel}>Thoughts</div>
+
+          {/* Project-linked thoughts (shown when project is active) */}
+          {activeProjectId && projectThoughtsCount > 0 && (
+            <div className={`px-3 py-2 mb-1 text-xs ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+              {projectThoughtsCount} linked to this project
+            </div>
+          )}
+
           <motion.button
             onClick={() => onNavigate("thoughts")}
             className={`${ui.navItem} ${
@@ -202,9 +215,6 @@ export default function Sidebar({
               />
             </svg>
             <span className="text-sm">All Thoughts</span>
-            {thoughts.length > 0 && (
-              <span className={ui.badge}>{thoughts.length}</span>
-            )}
           </motion.button>
         </motion.div>
 
