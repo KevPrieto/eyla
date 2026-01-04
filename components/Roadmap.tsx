@@ -1,25 +1,16 @@
 "use client";
 
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   DndContext,
-  closestCenter,
-  KeyboardSensor,
+  useDraggable,
+  DragEndEvent,
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent,
 } from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import type { Phase, Step, ThemeMode } from "@/types";
+import type { Phase, Step, Thought, ThemeMode } from "@/types";
 
 // Re-export types for backwards compatibility
 export type { Phase, Step };
@@ -27,6 +18,8 @@ export type { Phase, Step };
 type RoadmapProps = {
   phases: Phase[];
   setPhases: (phases: Phase[]) => void;
+  thoughts: Thought[];
+  onUpdateThought: (id: string, updates: Partial<Thought>) => void;
   theme?: ThemeMode;
 };
 
@@ -47,12 +40,14 @@ type FlatRef = {
   phaseName: string;
   text: string;
   completed: boolean;
-  linearIndex: number;
+  x: number;
+  y: number;
 };
 
 function flatten(phases: Phase[]): FlatRef[] {
   const out: FlatRef[] = [];
-  let k = 0;
+  let defaultY = 100;
+
   for (let pi = 0; pi < phases.length; pi++) {
     const p = phases[pi];
     for (let si = 0; si < p.steps.length; si++) {
@@ -65,156 +60,84 @@ function flatten(phases: Phase[]): FlatRef[] {
         phaseName: p.name,
         text: s.text,
         completed: s.completed,
-        linearIndex: k++,
+        x: s.x ?? 400,
+        y: s.y ?? defaultY,
       });
+      defaultY += 150;
     }
   }
   return out;
 }
 
-function rebuildPhasesFromFlat(flat: FlatRef[], originalPhases: Phase[]): Phase[] {
-  const newPhases: Phase[] = [];
-
-  flat.forEach((step) => {
-    let phase = newPhases.find((p) => p.name === step.phaseName);
-    if (!phase) {
-      const originalPhase = originalPhases.find((p) => p.name === step.phaseName);
-      phase = {
-        id: originalPhase?.id || uid(),
-        name: step.phaseName,
-        steps: [],
-      };
-      newPhases.push(phase);
-    }
-    phase.steps.push({
-      id: step.stepId,
-      text: step.text,
-      completed: step.completed,
-    });
+function formatTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
   });
-
-  return newPhases;
 }
 
-function firstIncompleteIndex(flat: FlatRef[]) {
-  return flat.findIndex((x) => !x.completed);
-}
+/* ---------- DraggableStep Component ---------- */
 
-function allDone(flat: FlatRef[]) {
-  return flat.length > 0 && flat.every((x) => x.completed);
-}
-
-function setFocusByLinearIndex(
-  prev: Phase[],
-  focusIndex: number
-): Phase[] {
-  const flat = flatten(prev);
-  const maxIdx = flat.length - 1;
-  const i = Math.max(0, Math.min(focusIndex, maxIdx));
-
-  return prev.map((p, pi) => ({
-    ...p,
-    steps: p.steps.map((s, si) => {
-      const ref = flat.find((r) => r.phaseIndex === pi && r.stepIndex === si);
-      if (!ref) return s;
-      const shouldBeCompleted = ref.linearIndex < i;
-      return { ...s, completed: shouldBeCompleted };
-    }),
-  }));
-}
-
-/* ---------- SortableStep Component ---------- */
-
-interface SortableStepProps {
+interface DraggableStepProps {
   step: FlatRef;
-  index: number;
-  isCurrent: boolean;
-  isPast: boolean;
-  isFuture: boolean;
-  isEditing: boolean;
-  isHovered: boolean;
-  onEdit: () => void;
-  onStopEdit: () => void;
-  onTextChange: (text: string) => void;
-  onFocus: () => void;
-  onComplete: () => void;
-  onAdd: () => void;
-  onRemove: () => void;
-  onHoverStart: () => void;
-  onHoverEnd: () => void;
+  linkedThoughts: Thought[];
+  isSelected: boolean;
+  onSelect: () => void;
   theme: ThemeMode;
 }
 
-function SortableStep({
+function DraggableStep({
   step,
-  index,
-  isCurrent,
-  isPast,
-  isFuture,
-  isEditing,
-  isHovered,
-  onEdit,
-  onStopEdit,
-  onTextChange,
-  onFocus,
-  onComplete,
-  onAdd,
-  onRemove,
-  onHoverStart,
-  onHoverEnd,
+  linkedThoughts,
+  isSelected,
+  onSelect,
   theme,
-}: SortableStepProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: step.stepId });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
+}: DraggableStepProps) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({
+      id: step.stepId,
+    });
 
   const isDark = theme === "dark";
 
-  const ui = {
-    input: isDark ? "text-slate-100 placeholder:text-slate-500" : "text-slate-800 placeholder:text-slate-400",
-    primary: isDark ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-sky-500 hover:bg-sky-600 text-white",
-    ghost: isDark
-      ? "text-slate-300/80 hover:text-slate-100 border border-slate-700/70 hover:bg-slate-900/40"
-      : "text-slate-600 hover:text-slate-800 border border-white/60 hover:bg-white/60",
-    danger: isDark
-      ? "border border-rose-500/40 text-rose-300 hover:text-rose-200 hover:bg-rose-500/10"
-      : "border border-rose-200 text-rose-500 hover:bg-rose-50/60",
-  };
+  const x = step.x + (transform?.x ?? 0);
+  const y = step.y + (transform?.y ?? 0);
 
   return (
     <div
       ref={setNodeRef}
-      style={style}
-      {...attributes}
       {...listeners}
-      className="flex justify-center my-4 cursor-grab active:cursor-grabbing"
+      {...attributes}
+      style={{
+        position: "absolute",
+        left: `${x}px`,
+        top: `${y}px`,
+        opacity: isDragging ? 0.5 : 1,
+        zIndex: isDragging ? 50 : isSelected ? 40 : 10,
+      }}
+      className="cursor-grab active:cursor-grabbing"
     >
       <motion.div
-        className={`w-full rounded-3xl px-6 py-5 transition-all duration-200 ${
+        onClick={onSelect}
+        className={`w-80 rounded-3xl px-6 py-5 transition-all duration-200 ${
           isDark ? "backdrop-blur-sm" : "backdrop-blur-xl"
         } ${
-          isPast
+          step.completed
             ? isDark
               ? "bg-slate-900/20 text-slate-500"
               : "bg-white/25 text-slate-400"
-            : isCurrent
-            ? isDark
-              ? "bg-slate-800/40 text-slate-100 ring-1 ring-slate-700/30 shadow-lg shadow-slate-900/30"
-              : "bg-white/60 text-slate-800 ring-1 ring-white/40 shadow-xl shadow-violet-200/30"
             : isDark
-            ? "bg-slate-900/15 text-slate-600"
-            : "bg-white/20 text-slate-500"
+            ? "bg-slate-800/40 text-slate-100 ring-1 ring-slate-700/30 shadow-lg shadow-slate-900/30"
+            : "bg-white/60 text-slate-800 ring-1 ring-white/40 shadow-xl shadow-violet-200/30"
+        } ${
+          isSelected
+            ? isDark
+              ? "ring-2 ring-sky-500/50"
+              : "ring-2 ring-violet-500/50"
+            : ""
         }`}
         whileHover={{
           scale: 1.01,
@@ -223,73 +146,178 @@ function SortableStep({
             : "0 0 28px 6px rgba(139, 92, 246, 0.15)",
         }}
         transition={{ duration: 0.2 }}
-        onHoverStart={onHoverStart}
-        onHoverEnd={onHoverEnd}
       >
         {/* Step text */}
-        {!isEditing || !isCurrent ? (
-          <button
-            onClick={isCurrent ? onEdit : onFocus}
-            className="w-full text-left"
-            title={isCurrent ? "Click to edit" : isPast ? "Click to revisit" : "Click to focus"}
-          >
-            <span className={isCurrent ? "text-lg font-medium" : "text-sm"}>
-              {step.text || "Untitled"}
-            </span>
-          </button>
-        ) : (
-          <input
-            autoFocus
-            value={step.text}
-            onChange={(e) => onTextChange(e.target.value)}
-            onBlur={onStopEdit}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === "Escape") onStopEdit();
-            }}
-            className={`w-full bg-transparent outline-none text-lg font-medium ${ui.input}`}
-            placeholder="Write the step..."
-          />
-        )}
+        <div className={step.completed ? "text-sm" : "text-lg font-medium"}>
+          {step.text || "Untitled"}
+        </div>
 
-        {/* Action buttons - only visible when current */}
+        {/* Phase label */}
         <div
-          className={`flex items-center gap-2 mt-4 transition-all duration-200 ${
-            isCurrent ? "opacity-60 hover:opacity-100" : "opacity-0 h-0 overflow-hidden"
+          className={`mt-1 text-xs uppercase tracking-wider ${
+            isDark ? "text-slate-500" : "text-slate-400"
           }`}
         >
-          <button
-            onClick={onComplete}
-            className={`flex-1 px-4 py-2 rounded-xl text-sm font-medium transition ${ui.primary}`}
-          >
-            Complete
-          </button>
-          <button
-            onClick={onAdd}
-            className={`px-3 py-2 rounded-xl text-sm transition ${ui.ghost}`}
-            title="Add step"
-          >
-            +
-          </button>
-          <button
-            onClick={onRemove}
-            className={`px-3 py-2 rounded-xl text-sm transition ${ui.danger}`}
-            title="Remove"
-          >
-            ×
-          </button>
+          {step.phaseName}
         </div>
+
+        {/* Linked thoughts */}
+        {linkedThoughts.length > 0 && (
+          <div className="mt-3 space-y-2 border-t border-slate-700/30 pt-3">
+            {linkedThoughts.map((thought) => (
+              <div
+                key={thought.id}
+                className={`text-sm ${
+                  isDark ? "text-slate-400" : "text-slate-600"
+                }`}
+              >
+                {thought.text}
+                {thought.scheduledAt && (
+                  <span
+                    className={`ml-2 text-xs ${
+                      isDark ? "text-emerald-400" : "text-emerald-600"
+                    }`}
+                  >
+                    📅 {formatTime(thought.scheduledAt)}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </motion.div>
     </div>
   );
 }
 
+/* ---------- ThoughtSelector Modal ---------- */
+
+interface ThoughtSelectorProps {
+  step: FlatRef;
+  allThoughts: Thought[];
+  onToggle: (thoughtId: string, stepId: string | undefined) => void;
+  onClose: () => void;
+  theme: ThemeMode;
+}
+
+function ThoughtSelector({
+  step,
+  allThoughts,
+  onToggle,
+  onClose,
+  theme,
+}: ThoughtSelectorProps) {
+  const isDark = theme === "dark";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className={`max-w-md w-full mx-4 rounded-2xl p-6 ${
+          isDark
+            ? "bg-slate-900 border border-slate-700"
+            : "bg-white border border-slate-200"
+        }`}
+      >
+        <h3
+          className={`text-lg font-medium mb-4 ${
+            isDark ? "text-slate-100" : "text-slate-800"
+          }`}
+        >
+          Link thoughts to: {step.text}
+        </h3>
+
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {allThoughts.length === 0 ? (
+            <p
+              className={`text-sm ${
+                isDark ? "text-slate-500" : "text-slate-400"
+              }`}
+            >
+              No thoughts available. Create some in the Thoughts view.
+            </p>
+          ) : (
+            allThoughts.map((thought) => (
+              <label
+                key={thought.id}
+                className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition ${
+                  isDark
+                    ? "hover:bg-slate-800/50"
+                    : "hover:bg-slate-100/50"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={thought.stepId === step.stepId}
+                  onChange={() =>
+                    onToggle(
+                      thought.id,
+                      thought.stepId === step.stepId ? undefined : step.stepId
+                    )
+                  }
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <div
+                    className={`text-sm ${
+                      isDark ? "text-slate-200" : "text-slate-700"
+                    }`}
+                  >
+                    {thought.text}
+                  </div>
+                  {thought.scheduledAt && (
+                    <div
+                      className={`text-xs mt-1 ${
+                        isDark ? "text-emerald-400" : "text-emerald-600"
+                      }`}
+                    >
+                      📅 {formatTime(thought.scheduledAt)}
+                    </div>
+                  )}
+                </div>
+              </label>
+            ))
+          )}
+        </div>
+
+        <button
+          onClick={onClose}
+          className={`mt-4 w-full py-2 rounded-xl transition ${
+            isDark
+              ? "bg-slate-800 hover:bg-slate-700 text-slate-200"
+              : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+          }`}
+        >
+          Done
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 /* ---------- Main Roadmap Component ---------- */
 
-export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapProps) {
+export default function Roadmap({
+  phases,
+  setPhases,
+  thoughts,
+  onUpdateThought,
+  theme = "dark",
+}: RoadmapProps) {
   const [flat, setFlat] = useState<FlatRef[]>([]);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+  const [showThoughtSelector, setShowThoughtSelector] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sync flat state with phases
@@ -297,296 +325,182 @@ export default function Roadmap({ phases, setPhases, theme = "dark" }: RoadmapPr
     setFlat(flatten(phases));
   }, [phases]);
 
-  const currentLinearIndex = useMemo(() => {
-    return firstIncompleteIndex(flat);
-  }, [flat]);
-
-  const done = useMemo(() => allDone(flat), [flat]);
-
-  const current = useMemo(() => {
-    if (!flat.length || currentLinearIndex === -1) return null;
-    return flat[currentLinearIndex];
-  }, [flat, currentLinearIndex]);
-
   const isDark = theme === "dark";
 
-  const ui = useMemo(
-    () =>
-      isDark
-        ? {
-            title: "text-slate-100",
-            sub: "text-slate-400",
-            hint: "text-slate-500",
-            fullscreenBg: "bg-[#050b18]",
-            fullscreenButton: "text-slate-400 hover:text-slate-200 bg-slate-900/40 hover:bg-slate-800/60",
-            pathStroke: "#475569",
-          }
-        : {
-            title: "text-slate-800",
-            sub: "text-slate-500",
-            hint: "text-slate-400",
-            fullscreenBg: "bg-gradient-to-br from-[#EDE7F6] via-[#F3F8FF] to-[#E3F6F8]",
-            fullscreenButton: "text-slate-600 hover:text-slate-800 bg-white/60 hover:bg-white/80",
-            pathStroke: "#cbd5e1",
-          },
-    [isDark]
-  );
+  // Calculate canvas bounds
+  const canvasBounds = useMemo(() => {
+    if (flat.length === 0) return { width: 1200, height: 800 };
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
+    const maxX = Math.max(...flat.map((s) => s.x)) + 400;
+    const maxY = Math.max(...flat.map((s) => s.y)) + 200;
 
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-
-    if (over && active.id !== over.id) {
-      const oldIndex = flat.findIndex((s) => s.stepId === active.id);
-      const newIndex = flat.findIndex((s) => s.stepId === over.id);
-
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const reordered = arrayMove(flat, oldIndex, newIndex);
-        const newPhases = rebuildPhasesFromFlat(reordered, phases);
-        setPhases(newPhases);
-      }
-    }
-  }
-
-  function setStepText(stepId: string, text: string) {
-    const newPhases = phases.map((p) => ({
-      ...p,
-      steps: p.steps.map((s) => (s.id === stepId ? { ...s, text } : s)),
-    }));
-    setPhases(newPhases);
-  }
-
-  function focusStep(linearIndex: number) {
-    setIsEditing(false);
-    setPhases(setFocusByLinearIndex(phases, linearIndex));
-  }
-
-  function completeCurrent() {
-    if (!current) return;
-    const idx = flat.findIndex((r) => r.stepId === current.stepId);
-    if (idx === -1) return;
-    const after = phases.map((p, pi) => ({
-      ...p,
-      steps: p.steps.map((s, si) => {
-        const ref = flat.find((r) => r.phaseIndex === pi && r.stepIndex === si);
-        if (!ref) return s;
-        return { ...s, completed: ref.linearIndex <= idx ? true : s.completed };
-      }),
-    }));
-    const newFlat = flatten(after);
-    const newIdx = firstIncompleteIndex(newFlat);
-    if (newIdx === -1) {
-      setPhases(after);
-      return;
-    }
-    setPhases(setFocusByLinearIndex(after, newIdx));
-  }
-
-  function addStepAfter() {
-    if (!current) return;
-    const newPhases = phases.map((p, pi) => {
-      if (pi !== current.phaseIndex) return p;
-      const i = current.stepIndex;
-      return {
-        ...p,
-        steps: [
-          ...p.steps.slice(0, i + 1),
-          { id: uid(), text: "New step", completed: false },
-          ...p.steps.slice(i + 1),
-        ],
-      };
-    });
-    setPhases(newPhases);
-  }
-
-  function removeCurrent() {
-    if (!current) return;
-    const updated = phases.map((p, pi) => {
-      if (pi !== current.phaseIndex) return p;
-      return { ...p, steps: p.steps.filter((s) => s.id !== current.stepId) };
-    });
-    const newFlat = flatten(updated);
-    if (newFlat.length === 0) {
-      setPhases(updated);
-      return;
-    }
-    const newFocusIdx = firstIncompleteIndex(newFlat);
-    if (newFocusIdx === -1) {
-      setPhases(updated);
-      return;
-    }
-    setPhases(setFocusByLinearIndex(updated, newFocusIdx));
-  }
-
-  const progressPercent = useMemo(() => {
-    if (flat.length === 0) return 0;
-    const completed = flat.filter((s) => s.completed).length;
-    return Math.round((completed / flat.length) * 100);
+    return {
+      width: Math.max(1200, maxX),
+      height: Math.max(800, maxY),
+    };
   }, [flat]);
 
-  // ESC key handler
-  useEffect(() => {
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape" && isFullscreen) {
-        setIsFullscreen(false);
+  const sensors = useSensors(useSensor(PointerSensor));
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, delta } = event;
+
+    const stepId = active.id as string;
+    const stepRef = flat.find((s) => s.stepId === stepId);
+    if (!stepRef) return;
+
+    const newX = stepRef.x + delta.x;
+    const newY = stepRef.y + delta.y;
+
+    // Update step position in phases
+    const newPhases = phases.map((p, pi) => {
+      if (pi !== stepRef.phaseIndex) return p;
+      return {
+        ...p,
+        steps: p.steps.map((s) =>
+          s.id === stepId ? { ...s, x: newX, y: newY } : s
+        ),
+      };
+    });
+
+    setPhases(newPhases);
+  }
+
+  function handleStepSelect(stepId: string) {
+    setSelectedStepId(stepId);
+    setShowThoughtSelector(true);
+  }
+
+  function handleThoughtToggle(thoughtId: string, stepId: string | undefined) {
+    onUpdateThought(thoughtId, { stepId });
+  }
+
+  // Get thoughts linked to each step
+  const thoughtsByStep = useMemo(() => {
+    const map = new Map<string, Thought[]>();
+    thoughts.forEach((t) => {
+      if (t.stepId) {
+        if (!map.has(t.stepId)) map.set(t.stepId, []);
+        map.get(t.stepId)!.push(t);
       }
+    });
+    return map;
+  }, [thoughts]);
+
+  const selectedStep = flat.find((s) => s.stepId === selectedStepId);
+
+  function handleZoomIn() {
+    setZoom((z) => Math.min(z + 0.1, 2));
+  }
+
+  function handleZoomOut() {
+    setZoom((z) => Math.max(z - 0.1, 0.3));
+  }
+
+  function handleResetZoom() {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  // Mouse wheel zoom
+  function handleWheel(e: React.WheelEvent) {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.05 : 0.05;
+      setZoom((z) => Math.max(0.3, Math.min(2, z + delta)));
     }
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [isFullscreen]);
-
-  const roadmapContent = (
-    <div className="w-full">
-      {/* Header */}
-      <div className="text-center mb-12">
-        <h2 className={`text-2xl md:text-3xl font-semibold ${ui.title}`}>
-          {done ? "Journey complete." : "Your path forward"}
-        </h2>
-        <p className={`mt-2 ${ui.sub}`}>
-          {done
-            ? "You can revisit any step or start fresh."
-            : `${progressPercent}% complete · Drag to reorder`}
-        </p>
-      </div>
-
-      {/* Path Container */}
-      <div className="w-full max-w-lg mx-auto relative" ref={containerRef}>
-        {/* Vertical Spine */}
-        <div
-          className={`absolute left-1/2 -translate-x-1/2 top-8 bottom-8 w-0.5 pointer-events-none ${
-            isDark
-              ? "bg-gradient-to-b from-transparent via-slate-600/40 to-transparent"
-              : "bg-gradient-to-b from-transparent via-slate-300/60 to-transparent"
-          }`}
-          style={{ zIndex: 0 }}
-        />
-
-        {/* Spine Glow - follows hovered step */}
-        {hoveredIndex !== null && (
-          <motion.div
-            className={`absolute left-1/2 -translate-x-1/2 w-12 h-24 rounded-full blur-xl pointer-events-none ${
-              isDark ? "bg-sky-400/15" : "bg-violet-500/12"
-            }`}
-            initial={{ opacity: 0 }}
-            animate={{
-              opacity: 1,
-              top: `${hoveredIndex * 80 + 80}px`,
-            }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{ zIndex: 0 }}
-          />
-        )}
-
-        {/* Steps */}
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={flat.map((s) => s.stepId)} strategy={verticalListSortingStrategy}>
-            {flat.map((step, idx) => {
-              const isNewPhase = idx === 0 || step.phaseIndex !== flat[idx - 1].phaseIndex;
-              const isCurrent = step.linearIndex === currentLinearIndex;
-              const isPast = step.completed;
-              const isFuture = !step.completed && !isCurrent;
-
-              return (
-                <React.Fragment key={step.stepId}>
-                  {isNewPhase && (
-                    <div
-                      className={`text-xs uppercase tracking-wider ${
-                        idx === 0 ? "mb-4" : "mt-16 mb-4"
-                      } ${ui.hint} text-center`}
-                    >
-                      {step.phaseName}
-                    </div>
-                  )}
-
-                  <SortableStep
-                    step={step}
-                    index={idx}
-                    isCurrent={isCurrent}
-                    isPast={isPast}
-                    isFuture={isFuture}
-                    isEditing={isEditing && isCurrent}
-                    isHovered={hoveredIndex === idx}
-                    onEdit={() => setIsEditing(true)}
-                    onStopEdit={() => setIsEditing(false)}
-                    onTextChange={(text) => setStepText(step.stepId, text)}
-                    onFocus={() => focusStep(step.linearIndex)}
-                    onComplete={completeCurrent}
-                    onAdd={addStepAfter}
-                    onRemove={removeCurrent}
-                    onHoverStart={() => setHoveredIndex(idx)}
-                    onHoverEnd={() => setHoveredIndex(null)}
-                    theme={theme}
-                  />
-                </React.Fragment>
-              );
-            })}
-          </SortableContext>
-        </DndContext>
-
-        {/* Done state */}
-        {done && flat.length > 0 && (
-          <div className="w-full max-w-md mx-auto rounded-2xl border border-slate-700/50 bg-[#0b1220]/70 p-8 my-8 text-center">
-            <div className={ui.title}>
-              <div className="text-2xl mb-2">✓</div>
-              <div className="text-lg font-medium">All complete</div>
-              <button
-                onClick={() => focusStep(Math.max(0, flat.length - 1))}
-                className={`mt-4 px-4 py-2 rounded-xl text-sm transition ${isDark ? 'text-slate-300/80 hover:text-slate-100 border border-slate-700/70 hover:bg-slate-900/40' : 'text-slate-600 hover:text-slate-800 border border-white/60 hover:bg-white/60'}`}
-              >
-                Revisit last step
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  }
 
   return (
     <>
-      {/* Fullscreen Toggle Button */}
-      {!isFullscreen && (
-        <button
-          onClick={() => setIsFullscreen(true)}
-          className={`fixed top-4 right-4 z-40 p-2.5 rounded-xl transition ${ui.fullscreenButton} backdrop-blur-sm`}
-          title="Enter fullscreen"
+      {/* Zoom Icon - Simple and Clean */}
+      <button
+        onClick={handleResetZoom}
+        className={`fixed top-20 right-8 z-50 p-3 rounded-full transition-all ${
+          isDark
+            ? "text-slate-400 hover:text-slate-200"
+            : "text-slate-500 hover:text-slate-700"
+        }`}
+        title="Scroll to zoom · Click to reset"
+      >
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+        </svg>
+      </button>
+
+      {/* Canvas - Fully Integrated */}
+      <div
+        ref={containerRef}
+        className="relative w-full overflow-hidden"
+        style={{
+          height: "calc(100vh - 100px)",
+        }}
+        onWheel={handleWheel}
+      >
+
+        <div
+          className="relative origin-top-left transition-transform duration-200"
+          style={{
+            width: `${canvasBounds.width}px`,
+            height: `${canvasBounds.height}px`,
+            transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
+          }}
         >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
-            />
-          </svg>
-        </button>
-      )}
-
-      {/* Normal Mode */}
-      {!isFullscreen && roadmapContent}
-
-      {/* Fullscreen Mode */}
-      {isFullscreen && (
-        <div className={`fixed inset-0 z-50 ${ui.fullscreenBg} overflow-y-auto`}>
-          <button
-            onClick={() => setIsFullscreen(false)}
-            className={`fixed top-4 right-4 z-50 p-2.5 rounded-xl transition ${ui.fullscreenButton} backdrop-blur-sm`}
-            title="Exit fullscreen"
+          {/* Connection Lines */}
+          <svg
+            className="absolute inset-0 pointer-events-none"
+            width={canvasBounds.width}
+            height={canvasBounds.height}
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          <div className="min-h-screen p-8">{roadmapContent}</div>
+            {flat.map((step, idx) => {
+              if (idx === flat.length - 1) return null;
+
+              const next = flat[idx + 1];
+              const midX = (step.x + next.x) / 2;
+
+              return (
+                <path
+                  key={`${step.stepId}-to-${next.stepId}`}
+                  d={`M ${step.x + 160} ${step.y + 40} C ${midX} ${
+                    step.y + 40
+                  }, ${midX} ${next.y + 40}, ${next.x + 160} ${next.y + 40}`}
+                  stroke={isDark ? "#475569" : "#cbd5e1"}
+                  strokeWidth="2"
+                  fill="none"
+                  opacity="0.4"
+                />
+              );
+            })}
+          </svg>
+
+          {/* Draggable Steps */}
+          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+            {flat.map((step) => (
+              <DraggableStep
+                key={step.stepId}
+                step={step}
+                linkedThoughts={thoughtsByStep.get(step.stepId) || []}
+                isSelected={selectedStepId === step.stepId}
+                onSelect={() => handleStepSelect(step.stepId)}
+                theme={theme}
+              />
+            ))}
+          </DndContext>
         </div>
-      )}
+      </div>
+
+      {/* Thought Selector Modal */}
+      <AnimatePresence>
+        {showThoughtSelector && selectedStep && (
+          <ThoughtSelector
+            step={selectedStep}
+            allThoughts={thoughts}
+            onToggle={handleThoughtToggle}
+            onClose={() => setShowThoughtSelector(false)}
+            theme={theme}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }

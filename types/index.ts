@@ -12,6 +12,8 @@ export interface Step {
   id: string;
   text: string;
   completed: boolean;
+  x?: number;  // Canvas X position
+  y?: number;  // Canvas Y position
 }
 
 // Phase containing steps
@@ -38,6 +40,7 @@ export interface Thought {
   text: string;
   createdAt: number;
   projectId?: string;           // Optional project association
+  stepId?: string;              // Optional step association (for roadmap canvas)
   scheduledAt?: number;         // Optional datetime (unix timestamp)
   reminderDismissed?: boolean;  // Track if reminder was dismissed
   visualNote?: string;          // Optional base64 image data (Addendum 4.1)

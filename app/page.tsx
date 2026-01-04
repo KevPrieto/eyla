@@ -171,6 +171,8 @@ export default function Page() {
           <Roadmap
             phases={activeProject.phases}
             setPhases={handlePhasesChange}
+            thoughts={thoughts}
+            onUpdateThought={thoughtActions.updateThought}
             theme={theme}
           />
         </>
