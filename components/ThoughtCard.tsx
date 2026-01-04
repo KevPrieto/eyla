@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { Thought, Project, ThemeMode } from "@/types";
 import { formatRelativeTime } from "@/utils/date";
 import VisualNoteEditor from "./VisualNoteEditor";
+import ThoughtEditorModal from "./ThoughtEditorModal";
 
 interface ThoughtCardProps {
   thought: Thought;
@@ -13,6 +14,7 @@ interface ThoughtCardProps {
   onSchedule: (timestamp: number) => void;
   onUnschedule: () => void;
   onSetVisualNote: (imageData: string | undefined) => void;
+  onUpdateContent: (title: string, content: string) => void;
   onDelete: () => void;
   theme: ThemeMode;
 }
@@ -24,6 +26,7 @@ export default function ThoughtCard({
   onSchedule,
   onUnschedule,
   onSetVisualNote,
+  onUpdateContent,
   onDelete,
   theme,
 }: ThoughtCardProps) {
@@ -32,6 +35,7 @@ export default function ThoughtCard({
   const [showProjectSelect, setShowProjectSelect] = useState(false);
   const [reminderDateTime, setReminderDateTime] = useState("");
   const [showVisualEditor, setShowVisualEditor] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // Find linked project name
   const linkedProject = thought.projectId
@@ -147,10 +151,18 @@ export default function ThoughtCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.25, ease: "easeOut" }}
-      className={ui.card}
+      className={`${ui.card} cursor-pointer`}
+      onClick={() => setShowEditModal(true)}
     >
-      {/* Thought content - PRIMARY */}
-      <p className={ui.content}>{thought.text}</p>
+      {/* Thought title - PRIMARY */}
+      <p className={`${ui.content} font-medium mb-2`}>{thought.text}</p>
+
+      {/* Content preview - if exists */}
+      {thought.content && (
+        <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-600"} line-clamp-3 mb-2`}>
+          {thought.content}
+        </p>
+      )}
 
       {/* Meta row - subtle */}
       <div className={`${ui.meta} flex items-center gap-2 flex-wrap`}>
@@ -169,7 +181,8 @@ export default function ThoughtCard({
       <div className={ui.actions}>
         {/* Reminder button */}
         <button
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             if (thought.scheduledAt) {
               onUnschedule();
             } else {
@@ -196,7 +209,8 @@ export default function ThoughtCard({
 
         {/* Project link button */}
         <button
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             setShowProjectSelect(!showProjectSelect);
             setShowReminderInput(false);
           }}
@@ -216,7 +230,10 @@ export default function ThoughtCard({
 
         {/* Visual note button (Addendum 4.1) - subtle, no CTA */}
         <button
-          onClick={() => setShowVisualEditor(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowVisualEditor(true);
+          }}
           className={thought.visualNote ? ui.iconButtonActive : ui.iconButton}
           title={thought.visualNote ? "View sketch" : "Add sketch"}
         >
@@ -233,7 +250,10 @@ export default function ThoughtCard({
 
         {/* Delete button - pushed to right */}
         <button
-          onClick={onDelete}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
           className={ui.deleteButton}
           title="Delete thought"
         >
@@ -317,6 +337,16 @@ export default function ThoughtCard({
         onClose={() => setShowVisualEditor(false)}
         initialData={thought.visualNote}
         onSave={onSetVisualNote}
+        theme={theme}
+      />
+
+      {/* Edit thought modal */}
+      <ThoughtEditorModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        initialTitle={thought.text}
+        initialContent={thought.content || ""}
+        onSave={onUpdateContent}
         theme={theme}
       />
     </motion.div>

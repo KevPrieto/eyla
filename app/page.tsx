@@ -24,14 +24,13 @@ export default function Page() {
   // Input state for home view
   const [idea, setIdea] = useState("");
 
-  // Hooks for project and thought operations
+  // Hooks
   const projectActions = useProjectActions(
     projects,
     setProjects,
     activeProjectId,
     setActiveProjectId
   );
-
   const thoughtActions = useThoughtActions(thoughts, setThoughts);
 
   // Notifications
@@ -41,26 +40,23 @@ export default function Page() {
     onDismissReminder: thoughtActions.dismissReminder,
   });
 
-  // Derived state
+  // Derived
   const activeProject = useMemo(
     () => projects.find((p) => p.id === activeProjectId) ?? null,
     [projects, activeProjectId]
   );
 
-  const hasRoadmap = activeProject !== null && activeProject.phases.length > 0;
-
-  // Load from localStorage (with migration)
+  // Load storage
   useEffect(() => {
     const data = loadFromStorage();
     setProjects(data.projects);
     setThoughts(data.thoughts);
     setActiveProjectId(data.activeProjectId);
     setTheme(data.theme);
-
     setIsLoaded(true);
   }, []);
 
-  // Persist theme changes
+  // Persist theme
   useEffect(() => {
     if (isLoaded) {
       localStorage.setItem(STORAGE_KEYS.THEME, theme);
@@ -86,28 +82,24 @@ export default function Page() {
     };
   }, [theme]);
 
-  // Start a new project
+  // Actions
   function startProject() {
     if (!idea.trim()) return;
-
     projectActions.addProject(idea.trim(), idea.trim());
     setIdea("");
     setCurrentView("roadmap");
   }
 
-  // Handle phase updates from Roadmap
   function handlePhasesChange(newPhases: Phase[]) {
     if (activeProjectId) {
       projectActions.updateProjectPhases(activeProjectId, newPhases);
     }
   }
 
-  // Handle navigation
   function handleNavigate(view: ViewType) {
     setCurrentView(view);
   }
 
-  // Reset everything (for debugging/development)
   function handleReset() {
     setProjects([]);
     setActiveProjectId(null);
@@ -119,9 +111,8 @@ export default function Page() {
     localStorage.removeItem(STORAGE_KEYS.THOUGHTS);
   }
 
-  // Render the appropriate view
-  function renderView() {
-    // Thoughts view
+  // Views EXCEPT roadmap canvas
+  function renderNonRoadmapView() {
     if (currentView === "thoughts") {
       return (
         <ThoughtsView
@@ -133,12 +124,12 @@ export default function Page() {
           onScheduleThought={thoughtActions.scheduleThought}
           onUnscheduleThought={thoughtActions.unscheduleThought}
           onSetVisualNote={thoughtActions.setVisualNote}
+          onUpdateContent={thoughtActions.updateThoughtContent}
           theme={theme}
         />
       );
     }
 
-    // Calendar view
     if (currentView === "calendar") {
       return (
         <CalendarView
@@ -151,41 +142,14 @@ export default function Page() {
       );
     }
 
-    // Roadmap view (when project exists and selected)
-    if (currentView === "roadmap" && activeProject) {
-      return (
-        <>
-          {/* Header */}
-          <header className="text-center mb-14 md:mb-16">
-            <img
-              src="/eyla-wordmark.png"
-              alt="EYLA"
-              className="h-auto mx-auto mb-3 object-contain"
-              style={{ width: "clamp(200px, 35vw, 280px)" }}
-            />
-            <p className={`${ui.subtitle} text-base md:text-lg`}>
-              One step at a time. The rest can wait.
-            </p>
-          </header>
-
-          <Roadmap
-            phases={activeProject.phases}
-            setPhases={handlePhasesChange}
-            thoughts={thoughts}
-            onUpdateThought={thoughtActions.updateThought}
-            theme={theme}
-          />
-        </>
-      );
-    }
-
-    // Home view (no project or initial state)
+    // Home
     return (
       <>
         <header className="text-center mb-14 md:mb-16">
           <img
             src="/eyla-wordmark.png"
             alt="EYLA"
+            tabIndex={-1}
             className="h-auto mx-auto mb-3 object-contain"
             style={{ width: "clamp(200px, 35vw, 280px)" }}
           />
@@ -210,10 +174,7 @@ export default function Page() {
     );
   }
 
-  // Don't render until loaded (prevents flash)
-  if (!isLoaded) {
-    return null;
-  }
+  if (!isLoaded) return null;
 
   return (
     <main className={ui.page}>
@@ -236,10 +197,48 @@ export default function Page() {
         getProjectProgress={projectActions.getProjectProgress}
       />
 
-      {/* CANVAS */}
+      {/* NORMAL CONTENT (CENTERED) */}
       <div className={ui.canvas}>
-        <section className={ui.stage}>{renderView()}</section>
+        <section className={ui.stage}>
+          {currentView !== "roadmap" && renderNonRoadmapView()}
+
+          {currentView === "roadmap" && activeProject && (
+            <header className="text-center mb-14 md:mb-16">
+              <img
+                src="/eyla-wordmark.png"
+                alt="EYLA"
+                tabIndex={-1}
+                className="h-auto mx-auto mb-3 object-contain"
+                style={{ width: "clamp(200px, 35vw, 280px)" }}
+              />
+              <p className={`${ui.subtitle} text-base md:text-lg`}>
+                One step at a time. The rest can wait.
+              </p>
+            </header>
+          )}
+        </section>
       </div>
+
+      {/* ROADMAP OVERLAY (FULL SCREEN DRAG AREA) */}
+      {currentView === "roadmap" && activeProject && (
+        <div
+          className="fixed z-20 overflow-hidden"
+          style={{
+            left: 280,   // sidebar width
+            top: 140,    // header height
+            right: 0,
+            bottom: 0,
+          }}
+        >
+          <Roadmap
+            phases={activeProject.phases}
+            setPhases={handlePhasesChange}
+            thoughts={thoughts}
+            onUpdateThought={thoughtActions.updateThought}
+            theme={theme}
+          />
+        </div>
+      )}
     </main>
   );
 }

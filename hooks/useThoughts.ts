@@ -83,6 +83,11 @@ export function useThoughtActions(
     updateThought(thoughtId, { visualNote: imageData });
   }, [updateThought]);
 
+  // Update thought text content (title + content)
+  const updateThoughtContent = useCallback((id: string, title: string, content: string) => {
+    updateThought(id, { text: title, content });
+  }, [updateThought]);
+
   // Get thoughts for a specific project
   const getThoughtsForProject = useCallback((projectId: string): Thought[] => {
     return thoughts.filter((t) => t.projectId === projectId);
@@ -114,6 +119,7 @@ export function useThoughtActions(
   return {
     addThought,
     updateThought,
+    updateThoughtContent,
     deleteThought,
     linkToProject,
     scheduleThought,

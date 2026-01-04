@@ -79,6 +79,24 @@ function formatTime(timestamp: number): string {
   });
 }
 
+/* ---------- Canvas Constants ---------- */
+
+const STEP_WIDTH = 320;  // w-80
+
+// Virtual canvas padding - creates large drag-safe area beyond content
+const CANVAS_PADDING = {
+  top: 1200,
+  left: 1200,
+  right: 1200,
+  bottom: 1200,
+};
+
+// Minimum virtual canvas size (even if no steps)
+const MIN_VIRTUAL_CANVAS = {
+  width: 4000,   // ~3-4x typical viewport width
+  height: 3000,  // ~3-4x typical viewport height
+};
+
 /* ---------- DraggableStep Component ---------- */
 
 interface DraggableStepProps {
@@ -87,6 +105,9 @@ interface DraggableStepProps {
   isSelected: boolean;
   onSelect: () => void;
   theme: ThemeMode;
+  measureRef?: React.RefObject<HTMLDivElement | null>;
+  onAddStep: () => void;
+  onDeleteStep: () => void;
 }
 
 function DraggableStep({
@@ -95,6 +116,9 @@ function DraggableStep({
   isSelected,
   onSelect,
   theme,
+  measureRef,
+  onAddStep,
+  onDeleteStep,
 }: DraggableStepProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
@@ -103,8 +127,9 @@ function DraggableStep({
 
   const isDark = theme === "dark";
 
-  const x = step.x + (transform?.x ?? 0);
-  const y = step.y + (transform?.y ?? 0);
+  // Apply origin offset to allow negative logical coordinates to render correctly
+  const renderX = step.x + (transform?.x ?? 0) + CANVAS_PADDING.left;
+  const renderY = step.y + (transform?.y ?? 0) + CANVAS_PADDING.top;
 
   return (
     <div
@@ -113,39 +138,38 @@ function DraggableStep({
       {...attributes}
       style={{
         position: "absolute",
-        left: `${x}px`,
-        top: `${y}px`,
+        left: `${renderX}px`,
+        top: `${renderY}px`,
         opacity: isDragging ? 0.5 : 1,
         zIndex: isDragging ? 50 : isSelected ? 40 : 10,
       }}
       className="cursor-grab active:cursor-grabbing"
     >
       <motion.div
+        ref={measureRef}
         onClick={onSelect}
-        className={`w-80 rounded-3xl px-6 py-5 transition-all duration-200 ${
-          isDark ? "backdrop-blur-sm" : "backdrop-blur-xl"
-        } ${
+        className={`w-80 rounded-3xl px-6 py-5 transition-all duration-200 backdrop-blur-xl ${
           step.completed
             ? isDark
-              ? "bg-slate-900/20 text-slate-500"
-              : "bg-white/25 text-slate-400"
+              ? "bg-slate-900/30 text-slate-500 ring-1 ring-slate-700/20"
+              : "bg-white/40 text-slate-400 ring-1 ring-slate-200/30"
             : isDark
-            ? "bg-slate-800/40 text-slate-100 ring-1 ring-slate-700/30 shadow-lg shadow-slate-900/30"
-            : "bg-white/60 text-slate-800 ring-1 ring-white/40 shadow-xl shadow-violet-200/30"
+            ? "bg-slate-800/50 text-slate-100 ring-1 ring-slate-700/40 shadow-lg shadow-blue-500/10"
+            : "bg-white/70 text-slate-800 ring-1 ring-violet-200/50 shadow-xl shadow-violet-300/25"
         } ${
           isSelected
             ? isDark
-              ? "ring-2 ring-sky-500/50"
-              : "ring-2 ring-violet-500/50"
+              ? "ring-2 ring-cyan-400/60 shadow-cyan-400/20"
+              : "ring-2 ring-violet-500/60 shadow-violet-400/25"
             : ""
         }`}
         whileHover={{
-          scale: 1.01,
+          scale: 1.02,
           boxShadow: isDark
-            ? "0 0 24px 4px rgba(56, 189, 248, 0.12)"
-            : "0 0 28px 6px rgba(139, 92, 246, 0.15)",
+            ? "0 0 32px 8px rgba(56, 189, 248, 0.18), 0 0 12px 2px rgba(59, 130, 246, 0.25)"
+            : "0 0 36px 10px rgba(139, 92, 246, 0.22), 0 0 14px 3px rgba(167, 139, 250, 0.3)",
         }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: 0.15 }}
       >
         {/* Step text */}
         <div className={step.completed ? "text-sm" : "text-lg font-medium"}>
@@ -185,6 +209,49 @@ function DraggableStep({
             ))}
           </div>
         )}
+
+        {/* Action buttons */}
+        <div
+          className={`mt-4 pt-4 flex items-center gap-2 border-t ${
+            isDark ? "border-slate-700/30" : "border-slate-300/30"
+          }`}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddStep();
+            }}
+            className={`p-2 rounded-lg transition ${
+              isDark
+                ? "text-slate-500 hover:text-cyan-400 hover:bg-slate-800/50"
+                : "text-slate-400 hover:text-sky-600 hover:bg-white/60"
+            }`}
+            title="Add step after this"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteStep();
+            }}
+            className={`p-2 rounded-lg transition ${
+              isDark
+                ? "text-slate-500 hover:text-rose-400 hover:bg-rose-900/20"
+                : "text-slate-400 hover:text-rose-500 hover:bg-rose-50/60"
+            }`}
+            title="Delete this step"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
       </motion.div>
     </div>
   );
@@ -318,27 +385,94 @@ export default function Roadmap({
   const [showThoughtSelector, setShowThoughtSelector] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [hasInitializedPan, setHasInitializedPan] = useState(false);
+  const [stepHeight, setStepHeight] = useState(150);
   const containerRef = useRef<HTMLDivElement>(null);
+  const stepMeasureRef = useRef<HTMLDivElement>(null);
 
   // Sync flat state with phases
   useEffect(() => {
     setFlat(flatten(phases));
   }, [phases]);
 
+  // Measure step height dynamically from a stable step
+  useEffect(() => {
+    if (stepMeasureRef.current) {
+      const height = stepMeasureRef.current.getBoundingClientRect().height;
+      if (height > 0) setStepHeight(height);
+    }
+  }, [flat.length]);
+
+  // Calculate center pan position for current content
+  function calculateCenterPan(): { x: number; y: number } | null {
+    if (flat.length === 0 || !containerRef.current) return null;
+
+    const container = containerRef.current;
+    const viewportWidth = container.clientWidth;
+    const viewportHeight = container.clientHeight;
+
+    // Skip if container not yet laid out
+    if (viewportWidth === 0 || viewportHeight === 0) return null;
+
+    // Find content bounds (logical coordinates)
+    const minX = Math.min(...flat.map((s) => s.x));
+    const maxX = Math.max(...flat.map((s) => s.x));
+    const minY = Math.min(...flat.map((s) => s.y));
+    const maxY = Math.max(...flat.map((s) => s.y));
+
+    // Content center in render coordinates (with CANVAS_PADDING offset)
+    const contentCenterX = ((minX + maxX) / 2) + CANVAS_PADDING.left + (STEP_WIDTH / 2);
+    const contentCenterY = ((minY + maxY) / 2) + CANVAS_PADDING.top + (stepHeight / 2);
+
+    // Viewport center
+    const viewportCenterX = viewportWidth / 2;
+    const viewportCenterY = viewportHeight / 2;
+
+    // Pan needed to center content (accounting for zoom)
+    const panX = (viewportCenterX - contentCenterX) / zoom;
+    const panY = (viewportCenterY - contentCenterY) / zoom;
+
+    return { x: panX, y: panY };
+  }
+
+  // Center content on initial mount
+  useEffect(() => {
+    // Only run once when we have steps and container
+    if (hasInitializedPan) return;
+
+    const centerPan = calculateCenterPan();
+    if (centerPan) {
+      setPan(centerPan);
+      setHasInitializedPan(true);
+    }
+  }, [flat, zoom, stepHeight, hasInitializedPan]);
+
   const isDark = theme === "dark";
 
-  // Calculate canvas bounds
+  // Calculate virtual canvas bounds (large area for dragging)
   const canvasBounds = useMemo(() => {
-    if (flat.length === 0) return { width: 1200, height: 800 };
+    if (flat.length === 0) {
+      return MIN_VIRTUAL_CANVAS;
+    }
 
-    const maxX = Math.max(...flat.map((s) => s.x)) + 400;
-    const maxY = Math.max(...flat.map((s) => s.y)) + 200;
+    // Find content bounds
+    const minX = Math.min(...flat.map((s) => s.x));
+    const maxX = Math.max(...flat.map((s) => s.x));
+    const minY = Math.min(...flat.map((s) => s.y));
+    const maxY = Math.max(...flat.map((s) => s.y));
+
+    // Calculate virtual canvas with large padding
+    const contentWidth = maxX - minX + STEP_WIDTH;
+    const contentHeight = maxY - minY + stepHeight;
+
+    const virtualWidth = contentWidth + CANVAS_PADDING.left + CANVAS_PADDING.right;
+    const virtualHeight = contentHeight + CANVAS_PADDING.top + CANVAS_PADDING.bottom;
 
     return {
-      width: Math.max(1200, maxX),
-      height: Math.max(800, maxY),
+      width: Math.max(MIN_VIRTUAL_CANVAS.width, virtualWidth),
+      height: Math.max(MIN_VIRTUAL_CANVAS.height, virtualHeight),
     };
-  }, [flat]);
+  }, [flat, stepHeight]);
 
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -349,8 +483,18 @@ export default function Roadmap({
     const stepRef = flat.find((s) => s.stepId === stepId);
     if (!stepRef) return;
 
-    const newX = stepRef.x + delta.x;
-    const newY = stepRef.y + delta.y;
+    // Calculate new logical position
+    let newX = stepRef.x + delta.x;
+    let newY = stepRef.y + delta.y;
+
+    // Clamp to virtual canvas bounds (far outside viewport)
+    const minX = -CANVAS_PADDING.left + 40;
+    const maxX = canvasBounds.width - CANVAS_PADDING.right - STEP_WIDTH - 40;
+    const minY = -CANVAS_PADDING.top + 40;
+    const maxY = canvasBounds.height - CANVAS_PADDING.bottom - stepHeight - 40;
+
+    newX = Math.max(minX, Math.min(maxX, newX));
+    newY = Math.max(minY, Math.min(maxY, newY));
 
     // Update step position in phases
     const newPhases = phases.map((p, pi) => {
@@ -399,7 +543,69 @@ export default function Roadmap({
 
   function handleResetZoom() {
     setZoom(1);
-    setPan({ x: 0, y: 0 });
+
+    // Calculate center position for current content
+    const centerPan = calculateCenterPan();
+    if (centerPan) {
+      setPan(centerPan);
+    } else {
+      // Fallback to origin if calculation fails
+      setPan({ x: 0, y: 0 });
+    }
+  }
+
+  // Add a new step after the current step
+  function handleAddStep(phaseIndex: number, stepIndex: number) {
+    const phase = phases[phaseIndex];
+    if (!phase) return;
+
+    const currentStep = phase.steps[stepIndex];
+
+    // Create new step positioned below the current step
+    const newStep: Step = {
+      id: uid(),
+      text: "New step",
+      completed: false,
+      x: currentStep?.x ?? 400,
+      y: (currentStep?.y ?? 100) + 150, // 150px below
+    };
+
+    // Insert after current step
+    const newPhases = phases.map((p, pi) => {
+      if (pi !== phaseIndex) return p;
+
+      const newSteps = [...p.steps];
+      newSteps.splice(stepIndex + 1, 0, newStep);
+
+      return { ...p, steps: newSteps };
+    });
+
+    setPhases(newPhases);
+  }
+
+  // Delete a step
+  function handleDeleteStep(phaseIndex: number, stepIndex: number) {
+    const phase = phases[phaseIndex];
+    if (!phase || phase.steps.length === 1) {
+      // Don't delete the last step in a phase
+      return;
+    }
+
+    const newPhases = phases.map((p, pi) => {
+      if (pi !== phaseIndex) return p;
+
+      const newSteps = p.steps.filter((_, si) => si !== stepIndex);
+      return { ...p, steps: newSteps };
+    });
+
+    setPhases(newPhases);
+
+    // Clear selection if deleted step was selected
+    const deletedStepId = phase.steps[stepIndex]?.id;
+    if (selectedStepId === deletedStepId) {
+      setSelectedStepId(null);
+      setShowThoughtSelector(false);
+    }
   }
 
   // Mouse wheel zoom
@@ -413,9 +619,28 @@ export default function Roadmap({
 
   return (
     <>
+      {/* DEBUG OVERLAY - REMOVE AFTER FIX */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed top-2 left-[300px] z-[100] bg-black/80 text-green-400 text-xs font-mono p-2 rounded max-w-md">
+          <div>phases: {phases.length}</div>
+          <div>total steps: {phases.reduce((sum, p) => sum + p.steps.length, 0)}</div>
+          <div>flat: {flat.length}</div>
+          {flat[0] && (
+            <>
+              <div>step[0] logical: ({flat[0].x}, {flat[0].y})</div>
+              <div>step[0] render: ({flat[0].x + CANVAS_PADDING.left}, {flat[0].y + CANVAS_PADDING.top})</div>
+            </>
+          )}
+          <div>pan: ({pan.x.toFixed(0)}, {pan.y.toFixed(0)})</div>
+          <div>zoom: {zoom}</div>
+          <div>container: {containerRef.current?.clientWidth ?? '?'}×{containerRef.current?.clientHeight ?? '?'}</div>
+        </div>
+      )}
+
       {/* Zoom Icon - Simple and Clean */}
       <button
         onClick={handleResetZoom}
+        tabIndex={-1}
         className={`fixed top-20 right-8 z-50 p-3 rounded-full transition-all ${
           isDark
             ? "text-slate-400 hover:text-slate-200"
@@ -431,12 +656,10 @@ export default function Roadmap({
       {/* Canvas - Fully Integrated */}
       <div
         ref={containerRef}
-        className="relative w-full overflow-hidden"
-        style={{
-          height: "calc(100vh - 100px)",
-        }}
-        onWheel={handleWheel}
+        className="relative w-full h-full overflow-hidden"
+        style={{ pointerEvents: "auto" }}
       >
+
 
         <div
           className="relative origin-top-left transition-transform duration-200"
@@ -452,22 +675,51 @@ export default function Roadmap({
             width={canvasBounds.width}
             height={canvasBounds.height}
           >
+            <defs>
+              {/* Gradient for path connections */}
+              <linearGradient id="eylaTrail" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="rgba(59,130,246,0.65)" />
+                <stop offset="55%" stopColor="rgba(34,211,238,0.55)" />
+                <stop offset="100%" stopColor="rgba(59,130,246,0.35)" />
+              </linearGradient>
+
+              {/* Soft glow filter */}
+              <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3.5" result="blur" />
+                <feColorMatrix
+                  in="blur"
+                  type="matrix"
+                  values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0.35 0"
+                  result="glow"
+                />
+                <feMerge>
+                  <feMergeNode in="glow" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
             {flat.map((step, idx) => {
               if (idx === flat.length - 1) return null;
 
               const next = flat[idx + 1];
-              const midX = (step.x + next.x) / 2;
+
+              // Apply origin offset to path coordinates
+              const x1 = step.x + 160 + CANVAS_PADDING.left;
+              const y1 = step.y + 40 + CANVAS_PADDING.top;
+              const x2 = next.x + 160 + CANVAS_PADDING.left;
+              const y2 = next.y + 40 + CANVAS_PADDING.top;
+              const midX = (x1 + x2) / 2;
 
               return (
                 <path
                   key={`${step.stepId}-to-${next.stepId}`}
-                  d={`M ${step.x + 160} ${step.y + 40} C ${midX} ${
-                    step.y + 40
-                  }, ${midX} ${next.y + 40}, ${next.x + 160} ${next.y + 40}`}
-                  stroke={isDark ? "#475569" : "#cbd5e1"}
-                  strokeWidth="2"
+                  d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
+                  stroke="url(#eylaTrail)"
+                  strokeWidth="3"
                   fill="none"
-                  opacity="0.4"
+                  filter="url(#softGlow)"
+                  strokeLinecap="round"
                 />
               );
             })}
@@ -475,16 +727,25 @@ export default function Roadmap({
 
           {/* Draggable Steps */}
           <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-            {flat.map((step) => (
-              <DraggableStep
-                key={step.stepId}
-                step={step}
-                linkedThoughts={thoughtsByStep.get(step.stepId) || []}
-                isSelected={selectedStepId === step.stepId}
-                onSelect={() => handleStepSelect(step.stepId)}
-                theme={theme}
-              />
-            ))}
+            {flat.map((step) => {
+              // Find stable step for measurement (first non-completed or first step)
+              const stableStep = flat.find((s) => !s.completed) || flat[0];
+              const shouldMeasure = step.stepId === stableStep?.stepId;
+
+              return (
+                <DraggableStep
+                  key={step.stepId}
+                  step={step}
+                  linkedThoughts={thoughtsByStep.get(step.stepId) || []}
+                  isSelected={selectedStepId === step.stepId}
+                  onSelect={() => handleStepSelect(step.stepId)}
+                  theme={theme}
+                  measureRef={shouldMeasure ? stepMeasureRef : undefined}
+                  onAddStep={() => handleAddStep(step.phaseIndex, step.stepIndex)}
+                  onDeleteStep={() => handleDeleteStep(step.phaseIndex, step.stepIndex)}
+                />
+              );
+            })}
           </DndContext>
         </div>
       </div>

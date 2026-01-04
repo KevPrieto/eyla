@@ -14,6 +14,7 @@ interface ThoughtsViewProps {
   onScheduleThought: (thoughtId: string, timestamp: number) => void;
   onUnscheduleThought: (thoughtId: string) => void;
   onSetVisualNote: (thoughtId: string, imageData: string | undefined) => void;
+  onUpdateContent: (thoughtId: string, title: string, content: string) => void;
   theme: ThemeMode;
 }
 
@@ -28,6 +29,7 @@ export default function ThoughtsView({
   onScheduleThought,
   onUnscheduleThought,
   onSetVisualNote,
+  onUpdateContent,
   theme,
 }: ThoughtsViewProps) {
   const isDark = theme === "dark";
@@ -154,6 +156,7 @@ export default function ThoughtsView({
                   onSchedule={(timestamp) => onScheduleThought(thought.id, timestamp)}
                   onUnschedule={() => onUnscheduleThought(thought.id)}
                   onSetVisualNote={(imageData) => onSetVisualNote(thought.id, imageData)}
+                  onUpdateContent={(title, content) => onUpdateContent(thought.id, title, content)}
                   onDelete={() => onDeleteThought(thought.id)}
                   theme={theme}
                 />

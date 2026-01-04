@@ -13,8 +13,8 @@ interface VisualNoteEditorProps {
 }
 
 // Fixed canvas size per PRD Addendum 4.1 (no zoom, no pan)
-const CANVAS_WIDTH = 400;
-const CANVAS_HEIGHT = 300;
+const CANVAS_WIDTH = 600;
+const CANVAS_HEIGHT = 400;
 
 export default function VisualNoteEditor({
   isOpen,

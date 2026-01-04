@@ -37,7 +37,8 @@ export interface Project {
 // Thought (renamed from Note) with optional project link and scheduling
 export interface Thought {
   id: string;
-  text: string;
+  text: string;                 // Treat as title
+  content?: string;             // Full content (optional for backward compatibility)
   createdAt: number;
   projectId?: string;           // Optional project association
   stepId?: string;              // Optional step association (for roadmap canvas)
