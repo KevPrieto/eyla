@@ -389,7 +389,10 @@ export default function Roadmap({
   const [stepHeight, setStepHeight] = useState(150);
   const containerRef = useRef<HTMLDivElement>(null);
   const stepMeasureRef = useRef<HTMLDivElement>(null);
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
+  const [draftText, setDraftText] = useState("");
 
+  
   // Sync flat state with phases
   useEffect(() => {
     setFlat(flatten(phases));
@@ -584,6 +587,7 @@ export default function Roadmap({
   }
 
   // Delete a step
+
   function handleDeleteStep(phaseIndex: number, stepIndex: number) {
     const phase = phases[phaseIndex];
     if (!phase || phase.steps.length === 1) {
