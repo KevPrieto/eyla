@@ -79,6 +79,66 @@ localStorage for saving roadmaps (Phase 3)
 No backend, no auth, no complexity.
 A junior dev can build and extend it with AI assistance.
 
+🚀 How to Run & Test EYLA (Local Deployment)
+
+EYLA is a client-side MVP and can be run locally in a few simple steps.
+
+Requirements
+
+Node.js v18 or higher
+
+npm (or yarn / pnpm)
+
+An OpenAI API key
+
+Installation
+
+Clone the repository and install dependencies:
+
+npm install
+
+Environment Variables
+
+Create a .env.local file in the root of the project and add your OpenAI API key:
+
+OPENAI_API_KEY=your_key_here
+
+
+The app uses a lightweight OpenAI model for roadmap generation.
+No backend, no database, no authentication is required.
+
+Run the App
+
+Start the development server:
+
+npm run dev
+
+Then open your browser at:
+
+👉 http://localhost:3000
+
+How to Test the MVP
+
+Enter a vague or high-level idea (e.g. “I want to build an online store”)
+
+Let the AI generate a roadmap
+
+Edit phases and steps freely
+
+Refresh the page to verify local persistence
+
+Clear the roadmap if needed and start again
+
+All data is stored locally in the browser (localStorage).
+
+Notes for Evaluation
+
+This is version 0.1 (MVP)
+
+The focus is on clarity of thinking, structure, and interaction, not on scale or production infrastructure
+
+The project intentionally avoids backend complexity to validate the core concept first
+
 🔧 MVP Features
 ✔️ Core (Phase 1)
 
