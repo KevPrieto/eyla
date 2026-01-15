@@ -9,7 +9,7 @@
 
 | Phase | Status | Completion |
 |-------|--------|------------|
-| Phase 1.1 - SoftTimeline Visual Implementation | 🟡 IN PROGRESS | 0% |
+| Phase 1.1 - SoftTimeline Visual Implementation | ✅ DONE | 100% |
 | Phase 1.2 - Roadmap Canvas Refinement | ⏳ PENDING | 0% |
 | Phase 1.3 - Notification Timing Definition | ⏳ PENDING | 0% |
 | Phase 2.1 - Project Status Workflow | ⏳ PENDING | 0% |
@@ -24,10 +24,10 @@
 
 | Task | Status | File | Waiting For User Test |
 |------|--------|------|----------------------|
-| Implement read-only step display with current step highlighted | ⏳ PENDING | components/SoftTimeline.tsx | No |
-| Show 2-3 next steps in diminished state | ⏳ PENDING | components/SoftTimeline.tsx | No |
-| Ensure timeline never triggers navigation or focus changes | ⏳ PENDING | components/SoftTimeline.tsx | No |
-| Add progress indicator (subtle, non-celebratory) | ⏳ PENDING | components/SoftTimeline.tsx | No |
+| Implement read-only step display with current step highlighted | ✅ DONE | components/SoftTimeline.tsx | Yes |
+| Show 2-3 next steps in diminished state | ✅ DONE | components/SoftTimeline.tsx | Yes |
+| Ensure timeline never triggers navigation or focus changes | ✅ DONE | components/SoftTimeline.tsx | Yes |
+| Add progress indicator (subtle, non-celebratory) | ✅ DONE | components/SoftTimeline.tsx | Yes |
 
 ---
 

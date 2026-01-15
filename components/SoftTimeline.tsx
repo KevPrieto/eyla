@@ -50,12 +50,6 @@ export default function SoftTimeline({
     return flat.slice(currentIndex + 1).filter((x) => !x.step.completed).slice(0, maxNext);
   }, [flat, currentIndex, maxNext]);
 
-  const progress = useMemo(() => {
-    if (!flat.length) return 0;
-    const completed = flat.filter((x) => x.step.completed).length;
-    return Math.round((completed / flat.length) * 100);
-  }, [flat]);
-
   const isDark = theme === "dark";
 
   const colors = {
@@ -64,6 +58,8 @@ export default function SoftTimeline({
     secondary: "text-slate-500",
     divider: isDark ? "border-slate-800/60" : "border-slate-200/70",
     progress: isDark ? "bg-cyan-500/30" : "bg-violet-400/30",
+    progressBg: isDark ? "bg-slate-800" : "bg-slate-200",
+    progressFill: isDark ? "bg-cyan-500/30" : "bg-violet-400/30",
   };
 
   // Calculate overall progress percentage
@@ -118,8 +114,8 @@ export default function SoftTimeline({
       <div className="mt-1 space-y-2">
         {next.length ? (
           next.map((it) => (
-            <div key={it.step.id} className="group">
-              <div className={`text-xs leading-snug opacity-60 group-hover:opacity-80 ${colors.primary}`}>
+            <div key={it.step.id}>
+              <div className={`text-xs leading-snug opacity-60 ${colors.primary}`}>
                 {it.step.text || "Untitled step"}
               </div>
               <div className={`text-[11px] mt-0.5 ${colors.secondary}`}>
@@ -132,21 +128,6 @@ export default function SoftTimeline({
             Nothing queued.
           </div>
         )}
-      </div>
-
-      <div className={`my-3 border-t ${colors.divider}`} />
-
-      <div className={`text-[11px] uppercase tracking-wider ${colors.hint} mb-2`}>
-        Progress
-      </div>
-      <div className={`h-1 rounded-full overflow-hidden ${colors.progressBg}`}>
-        <div
-          className={`h-full transition-all duration-300 ${colors.progressFill}`}
-          style={{ width: `${progress * 100}%` }}
-        />
-      </div>
-      <div className={`text-[10px] mt-1 ${colors.secondary}`}>
-        {completedCount} of {totalSteps} steps
       </div>
     </div>
   );
